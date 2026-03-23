@@ -13,7 +13,9 @@
         style: null,
         budget: 50000,
         vastuEnabled: true,
-        layoutItems: []
+        layoutItems: [],
+        editableCanvas: null,
+        originalImageData: null
     };
 
     // ==================== DOM Helpers ====================
@@ -207,6 +209,9 @@
     function startGeneration() {
         goToStep(2);
 
+        // Add dynamic loading effects
+        addDynamicLoadingEffects();
+
         // Preload AI image in background
         const aiPath = AI_IMAGE_MAP[`${state.roomType}_${state.style}`];
         if (aiPath) loadImage(aiPath).catch(() => {});
@@ -247,13 +252,48 @@
                 if (next) next.classList.add('active');
                 qs('#gen-step-text').textContent   = stepDetails[currentGenStep].title;
                 qs('#gen-step-detail').textContent = stepDetails[currentGenStep].detail;
-                setTimeout(advanceStep, 600 + Math.random() * 400);
+                
+                // Add random variation to timing for more natural feel
+                const baseTime = 600;
+                const variation = Math.random() * 400;
+                setTimeout(advanceStep, baseTime + variation);
             } else {
                 setTimeout(showResults, 500);
             }
         }
 
         setTimeout(advanceStep, 800);
+    }
+
+    // Add dynamic loading effects during generation
+    function addDynamicLoadingEffects() {
+        const genWrap = qs('.gen-wrap');
+        if (!genWrap) return;
+        
+        // Add particle effect
+        const particleCount = 20;
+        for (let i = 0; i < particleCount; i++) {
+            const particle = document.createElement('div');
+            particle.className = 'gen-particle';
+            particle.style.cssText = `
+                position: absolute;
+                width: ${2 + Math.random() * 4}px;
+                height: ${2 + Math.random() * 4}px;
+                background: rgba(99,91,255,${0.3 + Math.random() * 0.4});
+                border-radius: 50%;
+                left: ${Math.random() * 100}%;
+                top: ${Math.random() * 100}%;
+                animation: particleRise ${3 + Math.random() * 3}s ease-in-out infinite;
+                animation-delay: ${Math.random() * 2}s;
+                pointer-events: none;
+            `;
+            genWrap.appendChild(particle);
+        }
+        
+        // Clean up particles after generation
+        setTimeout(() => {
+            qsa('.gen-particle').forEach(p => p.remove());
+        }, 6000);
     }
 
     // ==================== Results Module ====================
@@ -290,6 +330,9 @@
             console.log('[showResults] Transitioning to step 3 (results)...');
             goToStep(3);
             
+            // Add cool reveal animation
+            addResultRevealAnimation();
+            
             // Verify canvas is visible
             const resultCanvas = qs('#result-generated');
             const resultSection = qs('#step-results');
@@ -312,6 +355,48 @@
             console.error('[showResults] Stack:', error.stack);
             alert('Failed to generate design. Please try again.\n\nError: ' + error.message);
             goToStep(1);
+        }
+    }
+
+    // Add cool reveal animation to results
+    function addResultRevealAnimation() {
+        const compareGrid = qs('.compare-grid');
+        if (!compareGrid) return;
+        
+        // Stagger animation for before/after images
+        const sides = qsa('.compare-side');
+        sides.forEach((side, i) => {
+            side.style.opacity = '0';
+            side.style.transform = 'translateY(30px)';
+            setTimeout(() => {
+                side.style.transition = 'all 0.6s cubic-bezier(0.16, 1, 0.3, 1)';
+                side.style.opacity = '1';
+                side.style.transform = 'translateY(0)';
+            }, i * 200);
+        });
+        
+        // Animate arrow
+        const arrow = qs('.compare-arrow');
+        if (arrow) {
+            arrow.style.opacity = '0';
+            arrow.style.transform = 'scale(0)';
+            setTimeout(() => {
+                arrow.style.transition = 'all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)';
+                arrow.style.opacity = '1';
+                arrow.style.transform = 'scale(1)';
+            }, 400);
+        }
+        
+        // Animate edit controls
+        const editControls = qs('#edit-controls');
+        if (editControls) {
+            editControls.style.opacity = '0';
+            editControls.style.transform = 'translateY(20px)';
+            setTimeout(() => {
+                editControls.style.transition = 'all 0.6s ease';
+                editControls.style.opacity = '1';
+                editControls.style.transform = 'translateY(0)';
+            }, 800);
         }
     }
 
@@ -508,7 +593,7 @@
         }
     }
 
-    // New function: Blend user's image with AI-generated design
+    // Enhanced with randomization for unique outputs every time
     function renderCanvas2DWithAI(canvas, userImg, aiImg, palette) {
         console.log('[renderCanvas2DWithAI] Starting AI-blended render...');
         try {
@@ -524,66 +609,654 @@
             canvas.height = H;
             ctx.clearRect(0, 0, W, H);
 
-            // Step 1: Draw AI-generated design as base (60% opacity)
-            ctx.globalAlpha = 0.60;
+            // Generate unique seed for this render (ensures different output each time)
+            const seed = Date.now() + Math.random();
+            const variation = generateDesignVariation(seed);
+
+            // Step 1: Analyze structure
+            const structureMap = extractStructuralElements(userImg, W, H);
+            
+            // Step 2: Apply AI design with randomized strength
+            const aiStrength = 0.60 + (variation.aiBoost * 0.15); // 60-75%
+            ctx.globalAlpha = aiStrength;
             ctx.drawImage(aiImg, 0, 0, W, H);
             ctx.globalAlpha = 1.0;
 
-            // Step 2: Extract and preserve structural elements from user's image
-            // (walls, windows, doors, architectural features)
+            // Step 3: Blend structure with variation
             ctx.save();
             ctx.globalCompositeOperation = 'multiply';
-            ctx.globalAlpha = 0.35;
+            ctx.globalAlpha = 0.40 + (variation.structureBoost * 0.10);
             ctx.drawImage(userImg, 0, 0, W, H);
             ctx.restore();
 
-            // Step 3: Blend user's lighting and shadows
+            // Step 4: Lighting with randomized intensity
             ctx.save();
-            ctx.globalCompositeOperation = 'overlay';
-            ctx.globalAlpha = 0.25;
+            ctx.globalCompositeOperation = 'soft-light';
+            ctx.globalAlpha = 0.35 + (variation.lightingBoost * 0.10);
             ctx.drawImage(userImg, 0, 0, W, H);
             ctx.restore();
 
-            // Step 4: Apply style-specific color grading
+            // Step 5: Color grading with variation
             const work = createWorkCanvas(aiImg);
             const wCtx = work.getContext('2d');
             if (wCtx) {
                 applyStyleGradingFast(wCtx, work.width, work.height, state.style);
                 ctx.save();
                 ctx.globalCompositeOperation = 'color';
-                ctx.globalAlpha = 0.45;
+                ctx.globalAlpha = 0.35 + (variation.colorBoost * 0.10);
                 ctx.drawImage(work, 0, 0, W, H);
                 ctx.restore();
             }
 
-            // Step 5: Apply 3D depth effects
-            apply3DDepthEffect(ctx, W, H, palette);
+            // Step 6: Apply trending design elements
+            applyTrendingElements(ctx, W, H, palette, variation);
 
-            // Step 6: Add vignette
+            // Step 7: Perspective depth
+            applyPerspectiveDepth(ctx, W, H, palette, structureMap);
+
+            // Step 8: Realistic lighting
+            applyRealisticLighting(ctx, W, H, structureMap);
+
+            // Step 9: Subtle vignette
             ctx.save();
-            const vigGrad = ctx.createRadialGradient(W/2, H/2, W*0.25, W/2, H/2, W*0.82);
+            const vigGrad = ctx.createRadialGradient(W/2, H/2, W*0.3, W/2, H/2, W*0.85);
             vigGrad.addColorStop(0, 'rgba(0,0,0,0)');
-            vigGrad.addColorStop(1, 'rgba(0,0,0,0.28)');
+            vigGrad.addColorStop(1, `rgba(0,0,0,${0.18 + variation.vignetteBoost * 0.08})`);
             ctx.fillStyle = vigGrad;
             ctx.fillRect(0, 0, W, H);
             ctx.restore();
 
-            // Step 7: Enhance contrast and saturation
+            // Step 10: Subtle texture
             if (wCtx) {
-                applyContrastSat(wCtx, work.width, work.height, palette.contrastBoost, palette.satBoost);
+                const contrast = 1.05 + (variation.contrastBoost * 0.05);
+                const saturation = 1.08 + (variation.satBoost * 0.08);
+                applyContrastSat(wCtx, work.width, work.height, contrast, saturation);
                 ctx.save();
                 ctx.globalCompositeOperation = 'luminosity';
-                ctx.globalAlpha = 0.20;
+                ctx.globalAlpha = 0.15;
                 ctx.drawImage(work, 0, 0, W, H);
                 ctx.restore();
             }
 
+            addPhotoRealisticTexture(ctx, W, H);
             drawStyleBadge(ctx, W, H, palette);
-            console.log('[renderCanvas2DWithAI] ✓ AI-blended render complete');
+            
+            console.log('[renderCanvas2DWithAI] ✓ AI-blended render complete with variation:', variation);
+            
+            enableInteractiveEditing(canvas);
         } catch (err) {
             console.error('[renderCanvas2DWithAI] Error during AI-blended rendering:', err);
             throw err;
         }
+    }
+
+    // Generate unique design variation for each render
+    function generateDesignVariation(seed) {
+        const random = () => {
+            seed = (seed * 9301 + 49297) % 233280;
+            return seed / 233280;
+        };
+
+        return {
+            aiBoost: random() - 0.5,           // -0.5 to +0.5
+            structureBoost: random() - 0.5,
+            lightingBoost: random() - 0.5,
+            colorBoost: random() - 0.5,
+            contrastBoost: random() - 0.5,
+            satBoost: random() - 0.5,
+            vignetteBoost: random() - 0.5,
+            trendingStyle: Math.floor(random() * 4), // 0-3 for different trending styles
+            accentHue: random() * 360,         // Random accent color
+            patternIntensity: random()         // 0-1 for pattern strength
+        };
+    }
+
+    // Apply trending design elements (2024-2025 trends)
+    function applyTrendingElements(ctx, W, H, palette, variation) {
+        try {
+            const trendingStyles = [
+                // Style 0: Biophilic design (nature-inspired)
+                () => {
+                    ctx.save();
+                    ctx.globalCompositeOperation = 'overlay';
+                    ctx.globalAlpha = 0.08 * variation.patternIntensity;
+                    const grad = ctx.createLinearGradient(0, 0, W, H);
+                    grad.addColorStop(0, `hsla(${variation.accentHue}, 40%, 60%, 0.3)`);
+                    grad.addColorStop(1, `hsla(${variation.accentHue + 30}, 35%, 55%, 0.2)`);
+                    ctx.fillStyle = grad;
+                    ctx.fillRect(0, 0, W, H);
+                    ctx.restore();
+                },
+                
+                // Style 1: Japandi (Japanese + Scandinavian minimalism)
+                () => {
+                    ctx.save();
+                    ctx.globalCompositeOperation = 'multiply';
+                    ctx.globalAlpha = 0.06 * variation.patternIntensity;
+                    const grad = ctx.createRadialGradient(W*0.3, H*0.3, 0, W*0.3, H*0.3, W*0.6);
+                    grad.addColorStop(0, 'rgba(245, 240, 235, 0.4)');
+                    grad.addColorStop(1, 'rgba(230, 220, 210, 0.2)');
+                    ctx.fillStyle = grad;
+                    ctx.fillRect(0, 0, W, H);
+                    ctx.restore();
+                },
+                
+                // Style 2: Maximalist (bold colors and patterns)
+                () => {
+                    ctx.save();
+                    ctx.globalCompositeOperation = 'screen';
+                    ctx.globalAlpha = 0.05 * variation.patternIntensity;
+                    for (let i = 0; i < 3; i++) {
+                        const x = W * (0.2 + i * 0.3);
+                        const y = H * (0.3 + i * 0.2);
+                        const grad = ctx.createRadialGradient(x, y, 0, x, y, W * 0.3);
+                        grad.addColorStop(0, `hsla(${variation.accentHue + i * 60}, 70%, 60%, 0.3)`);
+                        grad.addColorStop(1, 'rgba(0,0,0,0)');
+                        ctx.fillStyle = grad;
+                        ctx.fillRect(0, 0, W, H);
+                    }
+                    ctx.restore();
+                },
+                
+                // Style 3: Sustainable luxury (earthy tones)
+                () => {
+                    ctx.save();
+                    ctx.globalCompositeOperation = 'soft-light';
+                    ctx.globalAlpha = 0.07 * variation.patternIntensity;
+                    const grad = ctx.createLinearGradient(0, H*0.4, 0, H);
+                    grad.addColorStop(0, 'rgba(139, 115, 85, 0.2)');
+                    grad.addColorStop(1, 'rgba(101, 84, 63, 0.3)');
+                    ctx.fillStyle = grad;
+                    ctx.fillRect(0, 0, W, H);
+                    ctx.restore();
+                }
+            ];
+
+            // Apply selected trending style
+            trendingStyles[variation.trendingStyle]();
+            
+        } catch (err) {
+            console.error('[applyTrendingElements] Error:', err);
+        }
+    }
+
+    // Extract structural elements from user's image (optimized for speed)
+    function extractStructuralElements(img, W, H) {
+        try {
+            // Use smaller sample size for faster analysis
+            const sampleSize = Math.min(400, W);
+            const scale = sampleSize / W;
+            const sampleH = Math.floor(H * scale);
+            
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = sampleSize;
+            tempCanvas.height = sampleH;
+            const ctx = tempCanvas.getContext('2d');
+            if (!ctx) return { floor: 0.65, ceiling: 0.25, walls: [0.15, 0.85], vanishingPoint: { x: 0.5, y: 0.4 } };
+            
+            ctx.drawImage(img, 0, 0, sampleSize, sampleH);
+            
+            // Quick edge detection (sample every 4th row for speed)
+            const edgeStrength = new Array(sampleH).fill(0);
+            const imageData = ctx.getImageData(0, 0, sampleSize, sampleH);
+            const data = imageData.data;
+            
+            for (let y = 2; y < sampleH - 2; y += 4) {
+                let rowEdge = 0;
+                for (let x = 0; x < sampleSize; x += 2) {
+                    const idx = (y * sampleSize + x) * 4;
+                    const idxAbove = ((y - 2) * sampleSize + x) * 4;
+                    const idxBelow = ((y + 2) * sampleSize + x) * 4;
+                    
+                    const grad = Math.abs(data[idx] - data[idxAbove]) + 
+                                Math.abs(data[idx] - data[idxBelow]);
+                    rowEdge += grad;
+                }
+                edgeStrength[y] = rowEdge / (sampleSize / 2);
+            }
+            
+            // Find ceiling and floor lines (quick scan)
+            let ceilingY = 0.25;
+            let floorY = 0.65;
+            let maxEdgeUpper = 0;
+            let maxEdgeLower = 0;
+            
+            for (let y = Math.floor(sampleH * 0.15); y < Math.floor(sampleH * 0.35); y += 2) {
+                if (edgeStrength[y] > maxEdgeUpper) {
+                    maxEdgeUpper = edgeStrength[y];
+                    ceilingY = y / sampleH;
+                }
+            }
+            
+            for (let y = Math.floor(sampleH * 0.55); y < Math.floor(sampleH * 0.75); y += 2) {
+                if (edgeStrength[y] > maxEdgeLower) {
+                    maxEdgeLower = edgeStrength[y];
+                    floorY = y / sampleH;
+                }
+            }
+            
+            return {
+                floor: floorY,
+                ceiling: ceilingY,
+                walls: [0.15, 0.85],
+                vanishingPoint: { x: 0.5, y: (ceilingY + floorY) / 2 }
+            };
+        } catch (err) {
+            console.error('[extractStructuralElements] Error:', err);
+            return { floor: 0.65, ceiling: 0.25, walls: [0.15, 0.85], vanishingPoint: { x: 0.5, y: 0.4 } };
+        }
+    }
+
+    // Create structure mask for region-aware blending
+    function createStructureMask(ctx, W, H, structureMap) {
+        // This creates a gradient that preserves structural areas more
+        const mask = ctx.createLinearGradient(0, 0, 0, H);
+        mask.addColorStop(0, 'rgba(255,255,255,0.8)'); // Ceiling - preserve more
+        mask.addColorStop(structureMap.ceiling, 'rgba(255,255,255,0.6)');
+        mask.addColorStop(structureMap.floor, 'rgba(255,255,255,0.7)');
+        mask.addColorStop(1, 'rgba(255,255,255,0.9)'); // Floor - preserve most
+        return mask;
+    }
+
+    // Apply perspective-aware depth effects
+    function applyPerspectiveDepth(ctx, W, H, palette, structureMap) {
+        try {
+            const vp = structureMap.vanishingPoint;
+            const floorY = H * structureMap.floor;
+            
+            // 1. Atmospheric perspective - objects farther away are hazier
+            ctx.save();
+            ctx.globalCompositeOperation = 'screen';
+            const depthGrad = ctx.createRadialGradient(
+                W * vp.x, H * vp.y, 0,
+                W * vp.x, H * vp.y, W * 0.7
+            );
+            depthGrad.addColorStop(0, 'rgba(240,245,250,0.12)');
+            depthGrad.addColorStop(0.6, 'rgba(240,245,250,0.04)');
+            depthGrad.addColorStop(1, 'rgba(240,245,250,0)');
+            ctx.fillStyle = depthGrad;
+            ctx.fillRect(0, 0, W, H);
+            ctx.restore();
+            
+            // 2. Floor depth gradient
+            ctx.save();
+            ctx.globalCompositeOperation = 'multiply';
+            const floorDepth = ctx.createLinearGradient(0, floorY, 0, H);
+            floorDepth.addColorStop(0, 'rgba(255,255,255,1)');
+            floorDepth.addColorStop(1, 'rgba(200,200,200,0.85)');
+            ctx.fillStyle = floorDepth;
+            ctx.fillRect(0, floorY, W, H - floorY);
+            ctx.restore();
+            
+        } catch (err) {
+            console.error('[applyPerspectiveDepth] Error:', err);
+        }
+    }
+
+    // Apply realistic lighting based on structure
+    function applyRealisticLighting(ctx, W, H, structureMap) {
+        try {
+            // 1. Ambient occlusion in corners
+            ctx.save();
+            ctx.globalCompositeOperation = 'multiply';
+            
+            // Top-left corner
+            const aoTL = ctx.createRadialGradient(0, 0, 0, 0, 0, W * 0.25);
+            aoTL.addColorStop(0, 'rgba(0,0,0,0.15)');
+            aoTL.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = aoTL;
+            ctx.fillRect(0, 0, W * 0.3, H * 0.4);
+            
+            // Top-right corner
+            const aoTR = ctx.createRadialGradient(W, 0, 0, W, 0, W * 0.25);
+            aoTR.addColorStop(0, 'rgba(0,0,0,0.15)');
+            aoTR.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = aoTR;
+            ctx.fillRect(W * 0.7, 0, W * 0.3, H * 0.4);
+            
+            ctx.restore();
+            
+            // 2. Subtle specular highlights on surfaces
+            ctx.save();
+            ctx.globalCompositeOperation = 'screen';
+            ctx.globalAlpha = 0.08;
+            
+            const highlight = ctx.createRadialGradient(
+                W * 0.5, H * 0.3, 0,
+                W * 0.5, H * 0.3, W * 0.4
+            );
+            highlight.addColorStop(0, 'rgba(255,255,255,0.3)');
+            highlight.addColorStop(1, 'rgba(255,255,255,0)');
+            ctx.fillStyle = highlight;
+            ctx.fillRect(0, 0, W, H * 0.6);
+            ctx.restore();
+            
+        } catch (err) {
+            console.error('[applyRealisticLighting] Error:', err);
+        }
+    }
+
+    // Add subtle texture for photorealism (optimized)
+    function addPhotoRealisticTexture(ctx, W, H) {
+        try {
+            // Use smaller work area for speed
+            const scale = Math.min(1, 800 / Math.max(W, H));
+            const workW = Math.floor(W * scale);
+            const workH = Math.floor(H * scale);
+            
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = workW;
+            tempCanvas.height = workH;
+            const tempCtx = tempCanvas.getContext('2d');
+            if (!tempCtx) return;
+            
+            tempCtx.drawImage(ctx.canvas, 0, 0, workW, workH);
+            const imageData = tempCtx.getImageData(0, 0, workW, workH);
+            const data = imageData.data;
+            
+            // Apply noise (sample every 2nd pixel for speed)
+            for (let i = 0; i < data.length; i += 8) {
+                const noise = (Math.random() - 0.5) * 8;
+                data[i] += noise;
+                data[i + 1] += noise;
+                data[i + 2] += noise;
+            }
+            
+            tempCtx.putImageData(imageData, 0, 0);
+            
+            ctx.save();
+            ctx.globalCompositeOperation = 'overlay';
+            ctx.globalAlpha = 0.03;
+            ctx.drawImage(tempCanvas, 0, 0, W, H);
+            ctx.restore();
+        } catch (err) {
+            console.error('[addPhotoRealisticTexture] Error:', err);
+        }
+    }
+
+    // Enable interactive editing on the result canvas
+    function enableInteractiveEditing(canvas) {
+        // Store original canvas data for editing
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        
+        state.editableCanvas = canvas;
+        state.originalImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        
+        // Add edit controls to the UI
+        addEditControls();
+    }
+
+    // Add interactive editing controls
+    function addEditControls() {
+        const resultSection = qs('#step-results');
+        if (!resultSection) return;
+        
+        // Check if controls already exist
+        if (qs('#edit-controls')) return;
+        
+        const controlsHTML = `
+            <div id="edit-controls" class="edit-controls">
+                <div class="edit-header">
+                    <h4>✨ Refine Your Design</h4>
+                    <p class="edit-hint">Adjust the final output to your preference</p>
+                </div>
+                <div class="edit-sliders">
+                    <div class="edit-slider-group">
+                        <label>
+                            <span class="edit-label">AI Design Strength</span>
+                            <span id="ai-strength-val" class="edit-value">60%</span>
+                        </label>
+                        <input type="range" id="ai-strength" min="30" max="90" value="60" step="5" class="edit-range">
+                    </div>
+                    <div class="edit-slider-group">
+                        <label>
+                            <span class="edit-label">Structure Preservation</span>
+                            <span id="structure-val" class="edit-value">40%</span>
+                        </label>
+                        <input type="range" id="structure-strength" min="20" max="70" value="40" step="5" class="edit-range">
+                    </div>
+                    <div class="edit-slider-group">
+                        <label>
+                            <span class="edit-label">Lighting Blend</span>
+                            <span id="lighting-val" class="edit-value">35%</span>
+                        </label>
+                        <input type="range" id="lighting-strength" min="15" max="60" value="35" step="5" class="edit-range">
+                    </div>
+                    <div class="edit-slider-group">
+                        <label>
+                            <span class="edit-label">Color Intensity</span>
+                            <span id="color-val" class="edit-value">35%</span>
+                        </label>
+                        <input type="range" id="color-intensity" min="10" max="60" value="35" step="5" class="edit-range">
+                    </div>
+                    <div class="edit-slider-group">
+                        <label>
+                            <span class="edit-label">Contrast</span>
+                            <span id="contrast-val" class="edit-value">5%</span>
+                        </label>
+                        <input type="range" id="contrast-adjust" min="-20" max="30" value="5" step="5" class="edit-range">
+                    </div>
+                    <div class="edit-slider-group">
+                        <label>
+                            <span class="edit-label">Brightness</span>
+                            <span id="brightness-val" class="edit-value">0%</span>
+                        </label>
+                        <input type="range" id="brightness-adjust" min="-30" max="30" value="0" step="5" class="edit-range">
+                    </div>
+                </div>
+                <div class="edit-actions">
+                    <button id="apply-edits-btn" class="btn-primary">Apply Changes</button>
+                    <button id="reset-edits-btn" class="btn-ghost">Reset to Original</button>
+                </div>
+            </div>
+        `;
+        
+        // Insert after the comparison grid
+        const comparisonTab = qs('#tab-comparison');
+        if (comparisonTab) {
+            comparisonTab.insertAdjacentHTML('beforeend', controlsHTML);
+            bindEditControls();
+        }
+    }
+
+    // Bind interactive editing controls
+    function bindEditControls() {
+        const applyBtn = qs('#apply-edits-btn');
+        const resetBtn = qs('#reset-edits-btn');
+        
+        // Update value displays
+        const sliders = [
+            { id: 'ai-strength', valId: 'ai-strength-val', suffix: '%' },
+            { id: 'structure-strength', valId: 'structure-val', suffix: '%' },
+            { id: 'lighting-strength', valId: 'lighting-val', suffix: '%' },
+            { id: 'color-intensity', valId: 'color-val', suffix: '%' },
+            { id: 'contrast-adjust', valId: 'contrast-val', suffix: '%' },
+            { id: 'brightness-adjust', valId: 'brightness-val', suffix: '%' }
+        ];
+        
+        sliders.forEach(({ id, valId, suffix }) => {
+            const slider = qs(`#${id}`);
+            const display = qs(`#${valId}`);
+            if (slider && display) {
+                slider.addEventListener('input', (e) => {
+                    display.textContent = e.target.value + suffix;
+                });
+            }
+        });
+        
+        if (applyBtn) {
+            applyBtn.addEventListener('click', applyEditChanges);
+        }
+        
+        if (resetBtn) {
+            resetBtn.addEventListener('click', resetToOriginal);
+        }
+    }
+
+    // Apply user's edit changes
+    async function applyEditChanges() {
+        if (!state.editableCanvas || !state.imageData) return;
+        
+        const aiStrength = parseInt(qs('#ai-strength')?.value || 60);
+        const structureStrength = parseInt(qs('#structure-strength')?.value || 40);
+        const lightingStrength = parseInt(qs('#lighting-strength')?.value || 35);
+        const colorIntensity = parseInt(qs('#color-intensity')?.value || 35);
+        const contrastAdjust = parseInt(qs('#contrast-adjust')?.value || 5);
+        const brightnessAdjust = parseInt(qs('#brightness-adjust')?.value || 0);
+        
+        console.log('[applyEditChanges] Applying user adjustments...', {
+            aiStrength, structureStrength, lightingStrength, colorIntensity, contrastAdjust, brightnessAdjust
+        });
+        
+        // Show loading indicator
+        const applyBtn = qs('#apply-edits-btn');
+        if (applyBtn) {
+            applyBtn.textContent = 'Applying...';
+            applyBtn.disabled = true;
+        }
+        
+        try {
+            // Re-render with new parameters
+            const canvas = state.editableCanvas;
+            const palette = STYLE_PALETTES[state.style];
+            const userImg = await loadImage(state.imageData);
+            
+            const aiImageKey = `${state.roomType}_${state.style}`;
+            const aiImagePath = AI_IMAGE_MAP[aiImageKey];
+            const aiDesignImg = aiImagePath ? await loadImage(aiImagePath) : null;
+            
+            if (aiDesignImg) {
+                await renderCanvas2DWithCustomParams(
+                    canvas, userImg, aiDesignImg, palette,
+                    aiStrength / 100,
+                    structureStrength / 100,
+                    lightingStrength / 100,
+                    colorIntensity / 100,
+                    contrastAdjust / 100,
+                    brightnessAdjust / 100
+                );
+            }
+            
+            console.log('[applyEditChanges] ✓ Changes applied successfully');
+        } catch (err) {
+            console.error('[applyEditChanges] Error:', err);
+            alert('Failed to apply changes. Please try again.');
+        } finally {
+            if (applyBtn) {
+                applyBtn.textContent = 'Apply Changes';
+                applyBtn.disabled = false;
+            }
+        }
+    }
+
+    // Reset to original generated image
+    function resetToOriginal() {
+        if (!state.editableCanvas || !state.originalImageData) return;
+        
+        const ctx = state.editableCanvas.getContext('2d');
+        if (!ctx) return;
+        
+        ctx.putImageData(state.originalImageData, 0, 0);
+        
+        // Reset sliders
+        const sliders = [
+            { id: 'ai-strength', value: 60 },
+            { id: 'structure-strength', value: 40 },
+            { id: 'lighting-strength', value: 35 },
+            { id: 'color-intensity', value: 35 },
+            { id: 'contrast-adjust', value: 5 },
+            { id: 'brightness-adjust', value: 0 }
+        ];
+        
+        sliders.forEach(({ id, value }) => {
+            const slider = qs(`#${id}`);
+            if (slider) {
+                slider.value = value;
+                slider.dispatchEvent(new Event('input'));
+            }
+        });
+        
+        console.log('[resetToOriginal] Reset to original design');
+    }
+
+    // Render with custom parameters for interactive editing
+    async function renderCanvas2DWithCustomParams(
+        canvas, userImg, aiImg, palette,
+        aiStrength, structureStrength, lightingStrength, colorIntensity,
+        contrastAdjust, brightnessAdjust
+    ) {
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        
+        const W = canvas.width;
+        const H = canvas.height;
+        
+        ctx.clearRect(0, 0, W, H);
+        
+        // Apply AI design with custom strength
+        ctx.globalAlpha = aiStrength;
+        ctx.drawImage(aiImg, 0, 0, W, H);
+        ctx.globalAlpha = 1.0;
+        
+        // Apply structure with custom strength
+        ctx.save();
+        ctx.globalCompositeOperation = 'multiply';
+        ctx.globalAlpha = structureStrength;
+        ctx.drawImage(userImg, 0, 0, W, H);
+        ctx.restore();
+        
+        // Apply lighting with custom strength
+        ctx.save();
+        ctx.globalCompositeOperation = 'soft-light';
+        ctx.globalAlpha = lightingStrength;
+        ctx.drawImage(userImg, 0, 0, W, H);
+        ctx.restore();
+        
+        // Apply color grading with custom intensity
+        const work = createWorkCanvas(aiImg);
+        const wCtx = work.getContext('2d');
+        if (wCtx) {
+            applyStyleGradingFast(wCtx, work.width, work.height, state.style);
+            ctx.save();
+            ctx.globalCompositeOperation = 'color';
+            ctx.globalAlpha = colorIntensity;
+            ctx.drawImage(work, 0, 0, W, H);
+            ctx.restore();
+        }
+        
+        // Apply contrast and brightness adjustments
+        if (contrastAdjust !== 0 || brightnessAdjust !== 0) {
+            const imageData = ctx.getImageData(0, 0, W, H);
+            const data = imageData.data;
+            const contrastFactor = 1 + contrastAdjust;
+            const brightnessFactor = brightnessAdjust * 255;
+            
+            for (let i = 0; i < data.length; i += 4) {
+                // Apply contrast
+                data[i] = clamp(((data[i] - 128) * contrastFactor) + 128 + brightnessFactor);
+                data[i + 1] = clamp(((data[i + 1] - 128) * contrastFactor) + 128 + brightnessFactor);
+                data[i + 2] = clamp(((data[i + 2] - 128) * contrastFactor) + 128 + brightnessFactor);
+            }
+            
+            ctx.putImageData(imageData, 0, 0);
+        }
+        
+        // Re-apply depth and lighting
+        const structureMap = extractStructuralElements(userImg, W, H);
+        applyPerspectiveDepth(ctx, W, H, palette, structureMap);
+        applyRealisticLighting(ctx, W, H, structureMap);
+        
+        // Subtle vignette
+        ctx.save();
+        const vigGrad = ctx.createRadialGradient(W/2, H/2, W*0.3, W/2, H/2, W*0.85);
+        vigGrad.addColorStop(0, 'rgba(0,0,0,0)');
+        vigGrad.addColorStop(1, 'rgba(0,0,0,0.18)');
+        ctx.fillStyle = vigGrad;
+        ctx.fillRect(0, 0, W, H);
+        ctx.restore();
+        
+        drawStyleBadge(ctx, W, H, palette);
     }
 
     // Final fallback — just display the original image with minimal styling
