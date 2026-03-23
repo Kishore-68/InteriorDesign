@@ -185,24 +185,60 @@ const STYLE_PALETTES = {
         overlay: "rgba(45,55,72,0.45)",
         tint: "rgba(129,140,248,0.25)",
         accent: "#818cf8",
-        name: "Modern"
+        name: "Modern",
+        wallTop: "rgba(100,120,160,0.6)",
+        wallBot: "rgba(70,90,130,0.4)",
+        floorTop: "rgba(50,60,80,0.5)",
+        floorBot: "rgba(30,40,60,0.7)",
+        ceilLight: "rgba(200,210,240,0.8)",
+        lightColor: "rgba(180,200,255,0.12)",
+        lightMid: "rgba(160,180,240,0.05)",
+        contrastBoost: 1.10,
+        satBoost: 1.08
     },
     minimal: {
         overlay: "rgba(250,250,250,0.35)",
         tint: "rgba(200,200,200,0.2)",
         accent: "#e2e8f0",
-        name: "Minimal"
+        name: "Minimal",
+        wallTop: "rgba(240,235,225,0.5)",
+        wallBot: "rgba(220,215,205,0.35)",
+        floorTop: "rgba(200,190,175,0.4)",
+        floorBot: "rgba(180,170,155,0.55)",
+        ceilLight: "rgba(255,252,245,0.9)",
+        lightColor: "rgba(255,248,235,0.14)",
+        lightMid: "rgba(255,245,225,0.06)",
+        contrastBoost: 1.04,
+        satBoost: 0.88
     },
     traditional: {
         overlay: "rgba(120,80,40,0.35)",
         tint: "rgba(200,160,100,0.2)",
         accent: "#d4a574",
-        name: "Traditional"
+        name: "Traditional",
+        wallTop: "rgba(160,110,60,0.45)",
+        wallBot: "rgba(130,85,40,0.35)",
+        floorTop: "rgba(100,65,30,0.5)",
+        floorBot: "rgba(70,40,15,0.65)",
+        ceilLight: "rgba(255,230,180,0.8)",
+        lightColor: "rgba(255,210,140,0.14)",
+        lightMid: "rgba(255,195,110,0.06)",
+        contrastBoost: 1.10,
+        satBoost: 1.20
     },
     luxury: {
         overlay: "rgba(60,30,80,0.4)",
         tint: "rgba(200,170,50,0.2)",
         accent: "#f5c518",
-        name: "Luxury"
+        name: "Luxury",
+        wallTop: "rgba(80,40,110,0.5)",
+        wallBot: "rgba(50,20,80,0.4)",
+        floorTop: "rgba(30,15,50,0.55)",
+        floorBot: "rgba(10,5,20,0.70)",
+        ceilLight: "rgba(255,230,120,0.7)",
+        lightColor: "rgba(255,215,80,0.13)",
+        lightMid: "rgba(240,190,50,0.05)",
+        contrastBoost: 1.14,
+        satBoost: 1.18
     }
 };

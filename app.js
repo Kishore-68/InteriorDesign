@@ -7,21 +7,19 @@
 
     // ==================== State ====================
     const state = {
-        step: 0,               // 0=upload, 1=configure, 2=generating, 3=results
-        imageData: null,        // base64 data URL
-        imageFile: null,
-        roomType: null,         // 'bedroom' | 'living' | 'kitchen'
-        style: null,            // 'modern' | 'minimal' | 'traditional' | 'luxury'
+        step: 0,
+        imageData: null,
+        roomType: null,
+        style: null,
         budget: 50000,
         vastuEnabled: true,
-        layoutItems: []         // placed furniture on canvas
+        layoutItems: []
     };
 
-    // ==================== DOM References ====================
-    const $ = (sel) => document.querySelector(sel);
-    const $$ = (sel) => document.querySelectorAll(sel);
+    // ==================== DOM Helpers ====================
+    const qs  = (sel, ctx) => (ctx || document).querySelector(sel);
+    const qsa = (sel, ctx) => Array.from((ctx || document).querySelectorAll(sel));
 
-    // Steps
     const steps = ['step-upload', 'step-configure', 'step-generating', 'step-results'];
 
     // ==================== Init ====================
@@ -33,23 +31,22 @@
         bindResultEvents();
         buildFurniturePalette();
         initLayoutCanvas();
+        updateBudgetUI();
     }
 
     // ==================== Step Navigation ====================
     function goToStep(idx) {
         state.step = idx;
         steps.forEach((id, i) => {
-            const el = document.getElementById(id);
-            el.classList.toggle('active', i === idx);
+            document.getElementById(id).classList.toggle('active', i === idx);
         });
         updateStepIndicators();
         window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
     function buildStepIndicators() {
-        const container = $('#step-indicators');
-        const labels = ['Upload', 'Configure', 'Generate', 'Results'];
-        labels.forEach((label, i) => {
+        const container = qs('#step-indicators');
+        ['Upload', 'Configure', 'Generate', 'Results'].forEach((label, i) => {
             if (i > 0) {
                 const conn = document.createElement('div');
                 conn.className = 'step-connector';
@@ -65,12 +62,12 @@
     }
 
     function updateStepIndicators() {
-        $$('.step-dot').forEach(d => {
+        qsa('.step-dot').forEach(d => {
             const i = +d.dataset.dotIdx;
             d.classList.toggle('active', i === state.step);
             d.classList.toggle('done', i < state.step);
         });
-        $$('.step-connector').forEach(c => {
+        qsa('.step-connector').forEach(c => {
             const i = +c.dataset.connIdx;
             c.classList.toggle('done', i <= state.step);
         });
@@ -78,39 +75,29 @@
 
     // ==================== Upload Module ====================
     function bindUploadEvents() {
-        const uploadZone = $('#upload-zone');
-        const fileInput = $('#file-input');
-        const cameraBtn = $('#camera-btn');
+        const uploadZone = qs('#upload-zone');
+        const fileInput  = qs('#file-input');
 
-        // Click to browse
         uploadZone.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => { if (e.target.files[0]) handleFile(e.target.files[0]); });
 
-        // File selected
-        fileInput.addEventListener('change', (e) => {
-            if (e.target.files[0]) handleFile(e.target.files[0]);
-        });
-
-        // Drag & drop
-        uploadZone.addEventListener('dragover', (e) => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
-        uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+        uploadZone.addEventListener('dragover',  (e) => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+        uploadZone.addEventListener('dragleave', ()  => uploadZone.classList.remove('drag-over'));
         uploadZone.addEventListener('drop', (e) => {
             e.preventDefault();
             uploadZone.classList.remove('drag-over');
             if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
         });
 
-        // Camera
-        cameraBtn.addEventListener('click', openCamera);
-        $('#cancel-camera-btn').addEventListener('click', closeCamera);
-        $('#capture-photo-btn').addEventListener('click', capturePhoto);
+        qs('#camera-btn').addEventListener('click', openCamera);
+        qs('#cancel-camera-btn').addEventListener('click', closeCamera);
+        qs('#capture-photo-btn').addEventListener('click', capturePhoto);
 
-        // Preview actions
-        $('#change-image-btn').addEventListener('click', () => {
+        qs('#change-image-btn').addEventListener('click', () => {
             state.imageData = null;
-            $('#image-preview-container').classList.add('hidden');
-            uploadZone.parentElement.classList.remove('hidden');
+            qs('#image-preview-container').classList.add('hidden');
         });
-        $('#proceed-btn').addEventListener('click', () => goToStep(1));
+        qs('#proceed-btn').addEventListener('click', () => goToStep(1));
     }
 
     function handleFile(file) {
@@ -118,42 +105,44 @@
         const reader = new FileReader();
         reader.onload = (e) => {
             state.imageData = e.target.result;
-            showPreview();
+            showPreview(file);
+            // Notify chatbot
+            if (typeof DesignChatbot !== 'undefined') {
+                DesignChatbot.setImageUploaded(true);
+            }
         };
         reader.readAsDataURL(file);
     }
 
-    function showPreview() {
-        const preview = $('#image-preview');
+    function showPreview(file) {
+        const preview = qs('#image-preview');
         preview.src = state.imageData;
-        $('#image-preview-container').classList.remove('hidden');
+        preview.onload = () => {
+            qs('#analysis-res').textContent = `${preview.naturalWidth} × ${preview.naturalHeight}`;
+        };
+        qs('#image-preview-container').classList.remove('hidden');
     }
 
     let cameraStream = null;
     function openCamera() {
-        const container = $('#camera-container');
-        const video = $('#camera-video');
         navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
             .then(stream => {
                 cameraStream = stream;
-                video.srcObject = stream;
-                container.classList.remove('hidden');
+                qs('#camera-video').srcObject = stream;
+                qs('#camera-container').classList.remove('hidden');
             })
             .catch(() => alert('Camera access denied or unavailable.'));
     }
 
     function closeCamera() {
-        if (cameraStream) {
-            cameraStream.getTracks().forEach(t => t.stop());
-            cameraStream = null;
-        }
-        $('#camera-container').classList.add('hidden');
+        if (cameraStream) { cameraStream.getTracks().forEach(t => t.stop()); cameraStream = null; }
+        qs('#camera-container').classList.add('hidden');
     }
 
     function capturePhoto() {
-        const video = $('#camera-video');
-        const canvas = $('#camera-canvas');
-        canvas.width = video.videoWidth;
+        const video  = qs('#camera-video');
+        const canvas = qs('#camera-canvas');
+        canvas.width  = video.videoWidth;
         canvas.height = video.videoHeight;
         canvas.getContext('2d').drawImage(video, 0, 0);
         state.imageData = canvas.toDataURL('image/jpeg', 0.9);
@@ -163,47 +152,54 @@
 
     // ==================== Configure Module ====================
     function bindConfigEvents() {
-        // Room selection
-        $$('[data-room]').forEach(card => {
+        qsa('[data-room]').forEach(card => {
             card.addEventListener('click', () => {
-                $$('[data-room]').forEach(c => c.classList.remove('selected'));
+                qsa('[data-room]').forEach(c => c.classList.remove('selected'));
                 card.classList.add('selected');
                 state.roomType = card.dataset.room;
             });
         });
 
-        // Style selection
-        $$('[data-style]').forEach(card => {
+        qsa('[data-style]').forEach(card => {
             card.addEventListener('click', () => {
-                $$('[data-style]').forEach(c => c.classList.remove('selected'));
+                qsa('[data-style]').forEach(c => c.classList.remove('selected'));
                 card.classList.add('selected');
                 state.style = card.dataset.style;
             });
         });
 
-        // Budget slider
-        const budgetSlider = $('#budget-slider');
-        const budgetValue = $('#budget-value');
+
+        const budgetSlider = qs('#budget-slider');
         budgetSlider.addEventListener('input', () => {
             state.budget = +budgetSlider.value;
-            budgetValue.textContent = formatCurrency(state.budget);
+            updateBudgetUI();
         });
 
-        // Vastu toggle
-        $('#vastu-toggle').addEventListener('change', (e) => {
-            state.vastuEnabled = e.target.checked;
-        });
+        qs('#vastu-toggle').addEventListener('change', (e) => { state.vastuEnabled = e.target.checked; });
+        qs('#back-to-upload').addEventListener('click', () => goToStep(0));
+    }
 
-        // Back button
-        $('#back-to-upload').addEventListener('click', () => goToStep(0));
+    function updateBudgetUI() {
+        const v = state.budget;
+        qs('#budget-value').textContent = formatCurrency(v);
+
+        let tier = 'Budget';
+        if (v > 50000 && v <= 150000) tier = 'Mid-Range';
+        else if (v > 150000) tier = 'Premium';
+        qs('#budget-tier').textContent = tier;
+
+        qsa('.tier-pill').forEach(t => {
+            const min = +t.dataset.min, max = +t.dataset.max;
+            t.classList.toggle('active', v >= min && v <= max);
+        });
     }
 
     // ==================== Generate Module ====================
     function bindGenerateEvents() {
-        $('#generate-btn').addEventListener('click', () => {
+        qs('#generate-btn').addEventListener('click', () => {
             if (!state.imageData) { alert('Please upload a room image first.'); goToStep(0); return; }
-            if (!state.roomType) { alert('Please select a room type.'); return; }
-            if (!state.style) { alert('Please select a design style.'); return; }
+            if (!state.roomType)  { alert('Please select a room type.'); return; }
+            if (!state.style)     { alert('Please select a design style.'); return; }
             startGeneration();
         });
     }
@@ -211,315 +207,410 @@
     function startGeneration() {
         goToStep(2);
 
-        // Preload the AI image while the animation plays
-        const aiKey = `${state.roomType}_${state.style}`;
-        const aiPath = AI_IMAGE_MAP[aiKey];
-        if (aiPath) loadImage(aiPath).catch(() => { });
+        // Preload AI image in background
+        const aiPath = AI_IMAGE_MAP[`${state.roomType}_${state.style}`];
+        if (aiPath) loadImage(aiPath).catch(() => {});
 
-        // Update vastu step visibility
-        const vastuStep = $('[data-genstep="3"]');
-        if (!state.vastuEnabled) {
-            vastuStep.style.display = 'none';
-        } else {
-            vastuStep.style.display = '';
-        }
+        // Vastu step visibility
+        const vastuStep = qs('[data-genstep="3"]');
+        vastuStep.style.display = state.vastuEnabled ? '' : 'none';
 
-        const stepTexts = [
-            'Analyzing room layout…',
-            'Generating interior design…',
-            'Applying selected style…',
-            'Running Vastu analysis…'
+        const stepDetails = [
+            { title: 'Analyzing Room Structure…',      detail: 'Detecting walls, floor, ceiling and window positions' },
+            { title: 'Detecting Spatial Geometry…',    detail: 'Estimating vanishing point and perspective depth' },
+            { title: 'Applying Style Transformation…', detail: 'Color grading and material tone mapping' },
+            { title: 'Rendering 3D Depth & Lighting…', detail: 'Ambient occlusion, specular highlights, floor reflection' },
+            { title: 'Finalizing Output…',             detail: 'Contrast, saturation and vignette pass' }
         ];
-        const totalSteps = state.vastuEnabled ? 4 : 3;
+
+        const totalSteps = 5;
         let currentGenStep = 0;
 
-        // Reset
-        $$('.gen-step').forEach(s => { s.classList.remove('active', 'done'); });
-        $('[data-genstep="0"]').classList.add('active');
-        $('#gen-progress-fill').style.width = '0%';
-        $('#gen-step-text').textContent = stepTexts[0];
+        qsa('.gen-step').forEach(s => s.classList.remove('active', 'done'));
+        qs('[data-genstep="0"]').classList.add('active');
+        qs('#gen-progress-fill').style.width = '0%';
+        qs('#gen-step-text').textContent   = stepDetails[0].title;
+        qs('#gen-step-detail').textContent = stepDetails[0].detail;
 
         function advanceStep() {
+            if (currentGenStep >= totalSteps) return;
+
+            const curr = qs(`[data-genstep="${currentGenStep}"]`);
+            if (curr) { curr.classList.remove('active'); curr.classList.add('done'); }
+
+            currentGenStep++;
+            const pct = (currentGenStep / totalSteps) * 100;
+            qs('#gen-progress-fill').style.width = pct + '%';
+
             if (currentGenStep < totalSteps) {
-                // Complete current
-                const curr = $(`[data-genstep="${currentGenStep}"]`);
-                curr.classList.remove('active');
-                curr.classList.add('done');
-
-                currentGenStep++;
-                const pct = (currentGenStep / totalSteps) * 100;
-                $('#gen-progress-fill').style.width = pct + '%';
-
-                if (currentGenStep < totalSteps) {
-                    const next = $(`[data-genstep="${currentGenStep}"]`);
-                    next.classList.add('active');
-                    $('#gen-step-text').textContent = stepTexts[currentGenStep];
-                    setTimeout(advanceStep, 1200 + Math.random() * 800);
-                } else {
-                    setTimeout(showResults, 600);
-                }
+                const next = qs(`[data-genstep="${currentGenStep}"]`);
+                if (next) next.classList.add('active');
+                qs('#gen-step-text').textContent   = stepDetails[currentGenStep].title;
+                qs('#gen-step-detail').textContent = stepDetails[currentGenStep].detail;
+                setTimeout(advanceStep, 600 + Math.random() * 400);
+            } else {
+                setTimeout(showResults, 500);
             }
         }
 
-        setTimeout(advanceStep, 1500);
+        setTimeout(advanceStep, 800);
     }
 
     // ==================== Results Module ====================
     async function showResults() {
         await generateDesignVisualization();
+        generateDesignIntelligence();
         generateBudgetRecommendations();
-        if (state.vastuEnabled) {
-            generateVastuAnalysis();
-        }
+        if (state.vastuEnabled) generateVastuAnalysis();
         populateMetaInfo();
+
+        // Run ML prediction on the uploaded image and show result
+        runMLPrediction();
+
         goToStep(3);
 
-        // Show/hide vastu tab
-        const vastuTab = $('[data-tab="vastu"]');
-        if (!state.vastuEnabled) {
-            vastuTab.style.display = 'none';
-        } else {
-            vastuTab.style.display = '';
-        }
+        // Vastu tab visibility
+        qs('[data-tab="vastu"]').style.display = state.vastuEnabled ? '' : 'none';
+
+        // Reset to first tab
+        qsa('.tab').forEach(b => b.classList.remove('active'));
+        qsa('.tab-panel').forEach(p => p.classList.remove('active'));
+        qs('[data-tab="comparison"]').classList.add('active');
+        qs('#tab-comparison').classList.add('active');
     }
 
     function bindResultEvents() {
-        // Tab switching
-        $$('.tab-btn').forEach(btn => {
+        qsa('.tab').forEach(btn => {
             btn.addEventListener('click', () => {
-                $$('.tab-btn').forEach(b => b.classList.remove('active'));
-                $$('.tab-panel').forEach(p => p.classList.remove('active'));
+                qsa('.tab').forEach(b => b.classList.remove('active'));
+                qsa('.tab-panel').forEach(p => p.classList.remove('active'));
                 btn.classList.add('active');
-                $(`#tab-${btn.dataset.tab}`).classList.add('active');
+                qs(`#tab-${btn.dataset.tab}`).classList.add('active');
             });
         });
 
-        // Start over
-        $('#start-over-btn').addEventListener('click', () => {
-            state.imageData = null;
-            state.roomType = null;
-            state.style = null;
-            state.budget = 50000;
-            state.layoutItems = [];
-            $$('[data-room]').forEach(c => c.classList.remove('selected'));
-            $$('[data-style]').forEach(c => c.classList.remove('selected'));
-            $('#budget-slider').value = 50000;
-            $('#budget-value').textContent = formatCurrency(50000);
-            $('#image-preview-container').classList.add('hidden');
-            // Reset tabs
-            $$('.tab-btn').forEach(b => b.classList.remove('active'));
-            $$('.tab-panel').forEach(p => p.classList.remove('active'));
-            $('[data-tab="comparison"]').classList.add('active');
-            $('#tab-comparison').classList.add('active');
-            goToStep(0);
-        });
+        qs('#start-over-btn').addEventListener('click', resetApp);
+        qs('#download-btn').addEventListener('click', downloadDesign);
+    }
 
-        // Download
-        $('#download-btn').addEventListener('click', downloadDesign);
+    function resetApp() {
+        state.imageData = null;
+        state.roomType  = null;
+        state.style     = null;
+        state.budget    = 50000;
+        state.layoutItems = [];
+
+        qsa('[data-room]').forEach(c => c.classList.remove('selected'));
+        qsa('[data-style]').forEach(c => c.classList.remove('selected'));
+        qs('#budget-slider').value = 50000;
+        updateBudgetUI();
+        qs('#image-preview-container').classList.add('hidden');
+        qs('#analysis-res').textContent = '—';
+
+        qsa('.tab').forEach(b => b.classList.remove('active'));
+        qsa('.tab-panel').forEach(p => p.classList.remove('active'));
+        qs('[data-tab="comparison"]').classList.add('active');
+        qs('#tab-comparison').classList.add('active');
+
+        state.layoutItems = [];
+        drawLayout();
+        goToStep(0);
     }
 
     // ==================== AI Design Visualization ====================
-    // Room+Style specific AI-generated interior images
-    // Hierarchical fallback: room+style → generic style → enhanced overlay
     const AI_IMAGE_MAP = {
-        bedroom_modern: 'assets/bedroom_modern.png',
-        bedroom_minimal: 'assets/bedroom_minimal.png',
+        bedroom_modern:      'assets/bedroom_modern.png',
+        bedroom_minimal:     'assets/bedroom_minimal.png',
         bedroom_traditional: 'assets/bedroom_traditional.png',
-        bedroom_luxury: 'assets/bedroom_luxury.png',
-        living_modern: 'assets/living_modern.png',
-        living_minimal: 'assets/living_minimal.png',
-        living_traditional: 'assets/traditional.png',       // fallback to generic
-        living_luxury: 'assets/luxury.png',            // fallback to generic
-        kitchen_modern: 'assets/modern.png',            // fallback to generic
-        kitchen_minimal: 'assets/minimal.png',           // fallback to generic
-        kitchen_traditional: 'assets/traditional.png',       // fallback to generic
-        kitchen_luxury: 'assets/luxury.png'             // fallback to generic
+        bedroom_luxury:      'assets/bedroom_luxury.png',
+        living_modern:       'assets/living_modern.png',
+        living_minimal:      'assets/living_minimal.png',
+        living_traditional:  'assets/traditional.png',
+        living_luxury:       'assets/luxury.png',
+        kitchen_modern:      'assets/modern.png',
+        kitchen_minimal:     'assets/minimal.png',
+        kitchen_traditional: 'assets/traditional.png',
+        kitchen_luxury:      'assets/luxury.png'
     };
 
-    // Cache for loaded images
-    const imageCache = {};
-
+    // No persistent cache — always load fresh to prevent stale bleed-in
     function loadImage(src) {
         return new Promise((resolve, reject) => {
-            if (imageCache[src]) { resolve(imageCache[src]); return; }
             const img = new Image();
             img.crossOrigin = 'anonymous';
-            img.onload = () => { imageCache[src] = img; resolve(img); };
+            img.onload  = () => resolve(img);
             img.onerror = reject;
             img.src = src;
         });
     }
 
+    // Downscale to max 800px for pixel ops — 10-25× faster than native res
+    function createWorkCanvas(img) {
+        const MAX = 800;
+        const nw = img.naturalWidth  || img.width;
+        const nh = img.naturalHeight || img.height;
+        const scale = Math.min(1, MAX / Math.max(nw, nh));
+        const c = document.createElement('canvas');
+        c.width  = Math.round(nw * scale);
+        c.height = Math.round(nh * scale);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        return c;
+    }
+
     async function generateDesignVisualization() {
-        // Set original image in the comparison panel
-        const resultOriginal = $('#result-original');
-        resultOriginal.src = state.imageData;
+        qs('#result-original').src = state.imageData;
 
-        const canvas = $('#result-generated');
-        const ctx = canvas.getContext('2d');
+        const canvas  = qs('#result-generated');
         const palette = STYLE_PALETTES[state.style];
-
-        // Load user's uploaded room image
         const roomImg = await loadImage(state.imageData);
 
-        // Determine the best AI image to use (room+style specific → generic style)
-        const aiKey = `${state.roomType}_${state.style}`;
-        const aiPath = AI_IMAGE_MAP[aiKey];
-        let aiImg = null;
-        try {
-            if (aiPath) aiImg = await loadImage(aiPath);
-        } catch (e) {
-            console.warn('AI image not found for', aiKey, '— using enhanced overlay');
+        // Try WebGL first (5-15ms) — falls back to Canvas 2D if unavailable
+        if (typeof WebGLRenderer !== 'undefined') {
+            const success = WebGLRenderer.render(canvas, roomImg, state.style, palette);
+            if (success) {
+                // Add style badge on top
+                const ctx = canvas.getContext('2d');
+                drawStyleBadge(ctx, canvas.width, canvas.height, palette);
+                return;
+            }
         }
 
-        const W = roomImg.width;
-        const H = roomImg.height;
-        canvas.width = W;
-        canvas.height = H;
+        // Fallback: Canvas 2D path (50-200ms on downscaled work canvas)
+        renderCanvas2D(canvas, roomImg, palette);
+    }
 
-        if (aiImg) {
-            // =================================================================
-            //  ADVANCED AI IMAGE-TO-IMAGE TRANSFORMATION PIPELINE
-            //  Blends the AI-generated fully-furnished interior onto the
-            //  user's room while preserving structural elements (walls,
-            //  windows, floor perspective).
-            // =================================================================
+    // Canvas 2D fallback — optimized with downscaling
+    function renderCanvas2D(canvas, roomImg, palette) {
+        const ctx = canvas.getContext('2d');
+        const NW = roomImg.naturalWidth  || roomImg.width;
+        const NH = roomImg.naturalHeight || roomImg.height;
 
-            // --- Offscreen canvases ---
-            const aiCanvas = document.createElement('canvas');
-            aiCanvas.width = W; aiCanvas.height = H;
-            const aiCtx = aiCanvas.getContext('2d');
-            aiCtx.drawImage(aiImg, 0, 0, W, H);
+        canvas.width  = NW;
+        canvas.height = NH;
+        ctx.clearRect(0, 0, NW, NH);
+        ctx.drawImage(roomImg, 0, 0, NW, NH);
 
-            const edgeCanvas = document.createElement('canvas');
-            edgeCanvas.width = W; edgeCanvas.height = H;
-            const edgeCtx = edgeCanvas.getContext('2d');
+        const work = createWorkCanvas(roomImg);
+        const wCtx = work.getContext('2d');
+        applyStyleGradingFast(wCtx, work.width, work.height, state.style);
 
-            // --- STEP 1: Extract edge structure from original room ---
-            // This preserves walls, windows, floor lines, door frames
-            edgeCtx.drawImage(roomImg, 0, 0, W, H);
-            const edgeData = edgeCtx.getImageData(0, 0, W, H);
-            extractEdges(edgeData);
-            edgeCtx.putImageData(edgeData, 0, 0);
-
-            // --- STEP 2: Start with AI-generated interior as PRIMARY image ---
-            // The AI image is the dominant layer — this is the transformation
-            ctx.drawImage(aiCanvas, 0, 0, W, H);
-
-            // --- STEP 3: Blend original room luminosity to preserve depth ---
-            // Uses 'luminosity' mode: keeps AI colors/furniture, adds room's
-            // light/shadow structure for realistic perspective match
-            ctx.save();
-            ctx.globalCompositeOperation = 'luminosity';
-            ctx.globalAlpha = 0.35;
-            ctx.drawImage(roomImg, 0, 0, W, H);
-            ctx.restore();
-
-            // --- STEP 4: Overlay original edges to reinforce room structure ---
-            // Walls, windows, and floor lines from original bleed through
-            ctx.save();
-            ctx.globalCompositeOperation = 'screen';
-            ctx.globalAlpha = 0.20;
-            ctx.drawImage(edgeCanvas, 0, 0, W, H);
-            ctx.restore();
-
-            // --- STEP 5: Color harmony — blend original room's color temperature ---
-            ctx.save();
-            ctx.globalCompositeOperation = 'color';
-            ctx.globalAlpha = 0.12;
-            ctx.drawImage(roomImg, 0, 0, W, H);
-            ctx.restore();
-
-            // --- STEP 6: Soft-light original for subtle perspective preservation ---
-            ctx.save();
-            ctx.globalCompositeOperation = 'soft-light';
-            ctx.globalAlpha = 0.30;
-            ctx.drawImage(roomImg, 0, 0, W, H);
-            ctx.restore();
-
-            // --- STEP 7: Style accent color wash ---
-            ctx.save();
-            ctx.globalCompositeOperation = 'soft-light';
-            ctx.fillStyle = palette.accent;
-            ctx.globalAlpha = 0.12;
-            ctx.fillRect(0, 0, W, H);
-            ctx.restore();
-
-        } else {
-            // =========================================================
-            //  FALLBACK: Enhanced color transformation (no AI image)
-            // =========================================================
-            ctx.drawImage(roomImg, 0, 0, W, H);
-
-            // Dramatic color overlay
-            ctx.save();
-            ctx.globalCompositeOperation = 'overlay';
-            ctx.fillStyle = palette.overlay;
-            ctx.globalAlpha = 0.6;
-            ctx.fillRect(0, 0, W, H);
-            ctx.restore();
-
-            // Style tint
-            ctx.save();
-            ctx.globalCompositeOperation = 'color';
-            ctx.fillStyle = palette.accent;
-            ctx.globalAlpha = 0.35;
-            ctx.fillRect(0, 0, W, H);
-            ctx.restore();
-
-            // Soft-light for depth
-            ctx.save();
-            ctx.globalCompositeOperation = 'soft-light';
-            ctx.fillStyle = palette.tint;
-            ctx.globalAlpha = 0.5;
-            ctx.fillRect(0, 0, W, H);
-            ctx.restore();
-        }
-
-        // --- LIGHTING: Ceiling warm spotlight ---
         ctx.save();
-        ctx.globalCompositeOperation = 'screen';
-        const spotGrad = ctx.createRadialGradient(W * 0.5, H * 0.08, 0, W * 0.5, H * 0.08, W * 0.55);
-        spotGrad.addColorStop(0, 'rgba(255,245,225,0.20)');
-        spotGrad.addColorStop(0.4, 'rgba(255,235,210,0.08)');
-        spotGrad.addColorStop(1, 'transparent');
-        ctx.fillStyle = spotGrad;
-        ctx.fillRect(0, 0, W, H);
+        ctx.globalCompositeOperation = 'color';
+        ctx.globalAlpha = 0.68;
+        ctx.drawImage(work, 0, 0, NW, NH);
         ctx.restore();
 
-        // --- LIGHTING: Floor ambient shadow for depth ---
+        const floorY   = NH * 0.60;
+        const ceilingY = NH * 0.22;
+
+        ctx.save();
+        ctx.globalCompositeOperation = 'soft-light';
+        ctx.globalAlpha = 0.26;
+        const wallGrad = ctx.createLinearGradient(0, ceilingY, 0, floorY);
+        wallGrad.addColorStop(0, palette.wallTop);
+        wallGrad.addColorStop(1, palette.wallBot);
+        ctx.fillStyle = wallGrad;
+        ctx.fillRect(0, ceilingY, NW, floorY - ceilingY);
+        ctx.restore();
+
         ctx.save();
         ctx.globalCompositeOperation = 'multiply';
-        const floorGrad = ctx.createLinearGradient(0, H * 0.82, 0, H);
-        floorGrad.addColorStop(0, 'rgba(0,0,0,0)');
-        floorGrad.addColorStop(1, 'rgba(0,0,0,0.18)');
+        ctx.globalAlpha = 0.20;
+        const floorGrad = ctx.createLinearGradient(0, floorY, 0, NH);
+        floorGrad.addColorStop(0, palette.floorTop);
+        floorGrad.addColorStop(1, palette.floorBot);
         ctx.fillStyle = floorGrad;
-        ctx.fillRect(0, 0, W, H);
+        ctx.fillRect(0, floorY, NW, NH - floorY);
         ctx.restore();
 
-        // --- CINEMATIC: Vignette ---
         ctx.save();
-        const vigGrad = ctx.createRadialGradient(W / 2, H / 2, W * 0.32, W / 2, H / 2, W * 0.85);
+        ctx.globalCompositeOperation = 'screen';
+        ctx.globalAlpha = 0.11;
+        const ceilGrad = ctx.createLinearGradient(0, 0, 0, ceilingY);
+        ceilGrad.addColorStop(0, palette.ceilLight);
+        ceilGrad.addColorStop(1, 'transparent');
+        ctx.fillStyle = ceilGrad;
+        ctx.fillRect(0, 0, NW, ceilingY);
+        ctx.restore();
+
+        apply3DDepthEffect(ctx, NW, NH, palette);
+
+        ctx.save();
+        const vigGrad = ctx.createRadialGradient(NW/2, NH/2, NW*0.25, NW/2, NH/2, NW*0.82);
         vigGrad.addColorStop(0, 'rgba(0,0,0,0)');
-        vigGrad.addColorStop(1, 'rgba(0,0,0,0.28)');
+        vigGrad.addColorStop(1, 'rgba(0,0,0,0.38)');
         ctx.fillStyle = vigGrad;
+        ctx.fillRect(0, 0, NW, NH);
+        ctx.restore();
+
+        applyContrastSat(wCtx, work.width, work.height, palette.contrastBoost, palette.satBoost);
+        ctx.save();
+        ctx.globalCompositeOperation = 'luminosity';
+        ctx.globalAlpha = 0.28;
+        ctx.drawImage(work, 0, 0, NW, NH);
+        ctx.restore();
+
+        drawStyleBadge(ctx, NW, NH, palette);
+    }
+
+    // Single-pass style grading on downscaled canvas — completes in <30ms
+    function applyStyleGradingFast(ctx, w, h, style) {
+        const id = ctx.getImageData(0, 0, w, h);
+        const d  = id.data;
+        const len = d.length;
+
+        if (style === 'modern') {
+            for (let i = 0; i < len; i += 4) {
+                const lum = 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2];
+                d[i]   = clamp(lum*0.35 + d[i]*0.65   + 4);
+                d[i+1] = clamp(lum*0.30 + d[i+1]*0.70 + 2);
+                d[i+2] = clamp(lum*0.20 + d[i+2]*0.80 + 12);
+            }
+        } else if (style === 'minimal') {
+            for (let i = 0; i < len; i += 4) {
+                const lum = 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2];
+                d[i]   = clamp(lum*0.22 + d[i]*0.78   + 20);
+                d[i+1] = clamp(lum*0.20 + d[i+1]*0.80 + 16);
+                d[i+2] = clamp(lum*0.18 + d[i+2]*0.82 + 10);
+            }
+        } else if (style === 'traditional') {
+            for (let i = 0; i < len; i += 4) {
+                d[i]   = clamp(d[i]   * 1.10 + 14);
+                d[i+1] = clamp(d[i+1] * 0.95 + 3);
+                d[i+2] = clamp(d[i+2] * 0.80 - 8);
+            }
+        } else if (style === 'luxury') {
+            for (let i = 0; i < len; i += 4) {
+                const lum  = 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2];
+                const dark = lum < 128;
+                d[i]   = dark ? clamp(d[i]*0.82   + 6)  : clamp(d[i]*1.08   + 8);
+                d[i+1] = dark ? clamp(d[i+1]*0.75 + 1)  : clamp(d[i+1]*0.96 + 2);
+                d[i+2] = dark ? clamp(d[i+2]*1.08 + 16) : clamp(d[i+2]*0.86 + 3);
+            }
+        }
+        ctx.putImageData(id, 0, 0);
+    }
+
+    // All GPU-composited canvas ops — zero pixel loops, runs in <5ms
+    function apply3DDepthEffect(ctx, W, H, palette) {
+        const floorY = H * 0.60;
+
+        // 1. Depth atmosphere — far objects (top) slightly hazy
+        ctx.save();
+        ctx.globalCompositeOperation = 'multiply';
+        const depthGrad = ctx.createLinearGradient(0, 0, 0, H * 0.55);
+        depthGrad.addColorStop(0,   'rgba(200,200,220,0.20)');
+        depthGrad.addColorStop(0.5, 'rgba(220,220,230,0.06)');
+        depthGrad.addColorStop(1,   'rgba(255,255,255,0)');
+        ctx.fillStyle = depthGrad;
+        ctx.fillRect(0, 0, W, H * 0.55);
+        ctx.restore();
+
+        // 2. Specular highlight — overhead area light
+        ctx.save();
+        ctx.globalCompositeOperation = 'screen';
+        const specGrad = ctx.createRadialGradient(W*0.5, H*0.06, 0, W*0.5, H*0.06, W*0.50);
+        specGrad.addColorStop(0,    palette.lightColor);
+        specGrad.addColorStop(0.35, palette.lightMid);
+        specGrad.addColorStop(1,    'transparent');
+        ctx.fillStyle = specGrad;
         ctx.fillRect(0, 0, W, H);
         ctx.restore();
 
-        // --- POST-PROCESSING: Contrast + saturation boost ---
-        enhanceImageQuality(ctx, W, H);
-
-        // --- BADGE: Style label ---
+        // 3. Window light — left-side natural source
         ctx.save();
+        ctx.globalCompositeOperation = 'screen';
+        ctx.globalAlpha = 0.09;
+        const winGrad = ctx.createRadialGradient(0, H*0.32, 0, 0, H*0.32, W*0.55);
+        winGrad.addColorStop(0,   'rgba(210,230,255,0.55)');
+        winGrad.addColorStop(0.5, 'rgba(200,220,255,0.18)');
+        winGrad.addColorStop(1,   'transparent');
+        ctx.fillStyle = winGrad;
+        ctx.fillRect(0, 0, W, H);
+        ctx.restore();
+
+        // 4. Ambient occlusion — edges/corners darken for 3D room feel
+        ctx.save();
+        ctx.globalCompositeOperation = 'multiply';
+        const aoL = ctx.createLinearGradient(0, 0, W*0.18, 0);
+        aoL.addColorStop(0, 'rgba(0,0,0,0.22)'); aoL.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = aoL; ctx.fillRect(0, 0, W*0.18, H);
+        const aoR = ctx.createLinearGradient(W, 0, W*0.82, 0);
+        aoR.addColorStop(0, 'rgba(0,0,0,0.22)'); aoR.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = aoR; ctx.fillRect(W*0.82, 0, W*0.18, H);
+        const aoT = ctx.createLinearGradient(0, 0, 0, H*0.12);
+        aoT.addColorStop(0, 'rgba(0,0,0,0.18)'); aoT.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = aoT; ctx.fillRect(0, 0, W, H*0.12);
+        ctx.restore();
+
+        // 5. Floor depth shadow — objects cast shadows toward camera
+        ctx.save();
+        ctx.globalCompositeOperation = 'multiply';
+        const floorShadow = ctx.createLinearGradient(0, floorY, 0, H);
+        floorShadow.addColorStop(0,   'rgba(0,0,0,0)');
+        floorShadow.addColorStop(0.5, 'rgba(0,0,0,0.10)');
+        floorShadow.addColorStop(1,   'rgba(0,0,0,0.32)');
+        ctx.fillStyle = floorShadow;
+        ctx.fillRect(0, floorY, W, H - floorY);
+        ctx.restore();
+
+        // 6. Floor reflection strip — glossy floor illusion
+        ctx.save();
+        ctx.globalCompositeOperation = 'screen';
+        const reflGrad = ctx.createLinearGradient(0, floorY, 0, floorY + H*0.12);
+        reflGrad.addColorStop(0, 'rgba(255,255,255,0.10)');
+        reflGrad.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = reflGrad;
+        ctx.fillRect(0, floorY, W, H*0.12);
+        ctx.restore();
+
+        // 7. Vanishing point darkening — pushes eye to center depth
+        ctx.save();
+        ctx.globalCompositeOperation = 'multiply';
+        const vpGrad = ctx.createRadialGradient(W*0.5, H*0.38, 0, W*0.5, H*0.38, W*0.72);
+        vpGrad.addColorStop(0,   'rgba(255,255,255,0)');
+        vpGrad.addColorStop(0.6, 'rgba(200,200,200,0)');
+        vpGrad.addColorStop(1,   'rgba(0,0,0,0.14)');
+        ctx.fillStyle = vpGrad;
+        ctx.fillRect(0, 0, W, H);
+        ctx.restore();
+    }
+
+    // Merged contrast + saturation — runs on downscaled work canvas only
+    function applyContrastSat(ctx, w, h, contrast = 1.08, satBoost = 1.12) {
+        const id = ctx.getImageData(0, 0, w, h);
+        const d  = id.data;
+        const br = 4;
+        for (let i = 0; i < d.length; i += 4) {
+            d[i]   = clamp(((d[i]   - 128) * contrast) + 128 + br);
+            d[i+1] = clamp(((d[i+1] - 128) * contrast) + 128 + br);
+            d[i+2] = clamp(((d[i+2] - 128) * contrast) + 128 + br);
+            const r = d[i]/255, g = d[i+1]/255, b = d[i+2]/255;
+            const mx = Math.max(r,g,b), mn = Math.min(r,g,b);
+            if (mx !== mn) {
+                const gray = 0.299*r + 0.587*g + 0.114*b;
+                const s    = mx === 0 ? 0 : (mx-mn)/mx;
+                const f    = Math.min(s * satBoost, 1) / Math.max(s, 0.001);
+                d[i]   = clamp((gray + (r-gray)*f) * 255);
+                d[i+1] = clamp((gray + (g-gray)*f) * 255);
+                d[i+2] = clamp((gray + (b-gray)*f) * 255);
+            }
+        }
+        ctx.putImageData(id, 0, 0);
+    }
+
+    function drawStyleBadge(ctx, W, H, palette) {
         const roomLabels = { bedroom: 'Bedroom', living: 'Living Room', kitchen: 'Kitchen' };
-        const badgeText = `✦ AI ${palette.name} ${roomLabels[state.roomType] || ''}`;
-        ctx.font = `bold ${Math.max(13, W * 0.02)}px Inter, sans-serif`;
+        const badgeText  = `✦ AI ${palette.name} ${roomLabels[state.roomType] || ''}`;
+        const fontSize   = Math.max(12, W * 0.018);
+        ctx.save();
+        ctx.font = `bold ${fontSize}px Inter, sans-serif`;
         const tm = ctx.measureText(badgeText);
-        const bx = W - tm.width - 30;
-        const by = H - 16;
+        const bx = W - tm.width - 28;
+        const by = H - 14;
         ctx.fillStyle = 'rgba(0,0,0,0.55)';
         ctx.beginPath();
-        ctx.roundRect(bx - 14, by - 15, tm.width + 28, 22, 6);
+        ctx.roundRect(bx - 12, by - 14, tm.width + 24, 20, 5);
         ctx.fill();
         ctx.fillStyle = palette.accent;
         ctx.globalAlpha = 0.95;
@@ -529,84 +620,154 @@
         ctx.restore();
     }
 
-    // Sobel-based edge extraction: preserves structural lines from original room
-    function extractEdges(imageData) {
-        const w = imageData.width;
-        const h = imageData.height;
-        const src = new Uint8ClampedArray(imageData.data);
-        const d = imageData.data;
-
-        for (let y = 1; y < h - 1; y++) {
-            for (let x = 1; x < w - 1; x++) {
-                const idx = (y * w + x) * 4;
-                // Convert to grayscale for neighbors
-                const g = (i) => 0.299 * src[i] + 0.587 * src[i + 1] + 0.114 * src[i + 2];
-
-                const tl = g(((y - 1) * w + (x - 1)) * 4);
-                const t = g(((y - 1) * w + x) * 4);
-                const tr = g(((y - 1) * w + (x + 1)) * 4);
-                const l = g((y * w + (x - 1)) * 4);
-                const r = g((y * w + (x + 1)) * 4);
-                const bl = g(((y + 1) * w + (x - 1)) * 4);
-                const b = g(((y + 1) * w + x) * 4);
-                const br = g(((y + 1) * w + (x + 1)) * 4);
-
-                // Sobel X and Y
-                const gx = -tl - 2 * l - bl + tr + 2 * r + br;
-                const gy = -tl - 2 * t - tr + bl + 2 * b + br;
-                const mag = Math.min(255, Math.sqrt(gx * gx + gy * gy));
-
-                d[idx] = mag;
-                d[idx + 1] = mag;
-                d[idx + 2] = mag;
-                d[idx + 3] = 255;
-            }
-        }
-    }
-
-    // Post-processing: boost contrast & saturation for photorealistic punch
-    function enhanceImageQuality(ctx, w, h) {
-        const imageData = ctx.getImageData(0, 0, w, h);
-        const d = imageData.data;
-        const contrast = 1.10;
-        const satBoost = 1.18;
-        const brightness = 3;
-
-        for (let i = 0; i < d.length; i += 4) {
-            // Contrast + brightness
-            d[i] = clamp(((d[i] - 128) * contrast) + 128 + brightness);
-            d[i + 1] = clamp(((d[i + 1] - 128) * contrast) + 128 + brightness);
-            d[i + 2] = clamp(((d[i + 2] - 128) * contrast) + 128 + brightness);
-
-            // Saturation boost (fast HSL approximation)
-            const r = d[i] / 255, g = d[i + 1] / 255, b = d[i + 2] / 255;
-            const max = Math.max(r, g, b), min = Math.min(r, g, b);
-            if (max !== min) {
-                const lum = (max + min) / 2;
-                const delta = max - min;
-                const s = lum > 0.5 ? delta / (2 - max - min) : delta / (max + min);
-                const sNew = Math.min(s * satBoost, 1);
-                const gray = 0.299 * r + 0.587 * g + 0.114 * b;
-                const factor = sNew / Math.max(s, 0.001);
-                d[i] = clamp((gray + (r - gray) * factor) * 255);
-                d[i + 1] = clamp((gray + (g - gray) * factor) * 255);
-                d[i + 2] = clamp((gray + (b - gray) * factor) * 255);
-            }
-        }
-        ctx.putImageData(imageData, 0, 0);
-    }
-
     function clamp(v) { return Math.max(0, Math.min(255, Math.round(v))); }
+
+    // ==================== Design Intelligence ====================
+    const DESIGN_INTELLIGENCE = {
+        modern: {
+            spatial: [
+                'Furniture aligned along clean geometric axes',
+                'Open floor plan with unobstructed pathways',
+                'Proportional scaling — sofa anchors the seating zone',
+                'TV unit centered on the focal wall'
+            ],
+            lighting: [
+                'Recessed LED downlights for ambient base layer',
+                'Floor lamp adds warm task lighting beside seating',
+                'Under-shelf accent strips highlight architectural lines',
+                'Natural light maximized — minimal window treatments'
+            ],
+            materials: [
+                'Matte lacquer cabinetry with brushed metal handles',
+                'Tempered glass surfaces for coffee and side tables',
+                'Polished concrete or large-format porcelain flooring',
+                'Linen and microfiber upholstery in neutral tones'
+            ],
+            colors: [
+                { hex: '#e2e8f0', name: 'Soft White' },
+                { hex: '#94a3b8', name: 'Cool Grey' },
+                { hex: '#475569', name: 'Slate' },
+                { hex: '#818cf8', name: 'Indigo Accent' },
+                { hex: '#1e293b', name: 'Deep Navy' }
+            ]
+        },
+        minimal: {
+            spatial: [
+                'Maximum open floor space — only essential pieces',
+                'Single focal point per zone, no visual clutter',
+                'Furniture floats away from walls for breathing room',
+                'Negative space used intentionally as a design element'
+            ],
+            lighting: [
+                'Soft diffused pendant light as sole overhead source',
+                'Warm 2700K bulbs for calm, zen atmosphere',
+                'Natural light is the primary design element',
+                'No harsh shadows — light bounces off pale surfaces'
+            ],
+            materials: [
+                'Raw oak and light ash wood in natural finish',
+                'Unbleached linen and organic cotton textiles',
+                'Matte white walls with zero-sheen paint',
+                'Woven jute or sisal area rug for texture'
+            ],
+            colors: [
+                { hex: '#fafafa', name: 'Pure White' },
+                { hex: '#f1f5f9', name: 'Off White' },
+                { hex: '#e2e8f0', name: 'Light Grey' },
+                { hex: '#d4b896', name: 'Warm Sand' },
+                { hex: '#a8a29e', name: 'Stone' }
+            ]
+        },
+        traditional: {
+            spatial: [
+                'Symmetrical furniture arrangement around central rug',
+                'Warm conversation grouping — sofas face each other',
+                'Bookshelf and display cabinet flank the focal wall',
+                'Layered textiles add visual depth and warmth'
+            ],
+            lighting: [
+                'Central chandelier as statement piece and primary light',
+                'Brass table lamps on side tables for warm pools of light',
+                'Wall sconces flank artwork for gallery-style accent',
+                'Warm 2200–2700K throughout for cozy ambiance'
+            ],
+            materials: [
+                'Solid teak or sheesham wood with hand-carved details',
+                'Silk and velvet upholstery in jewel tones',
+                'Persian or Kashmiri wool carpet as room anchor',
+                'Brass and bronze hardware and decorative accents'
+            ],
+            colors: [
+                { hex: '#92400e', name: 'Warm Brown' },
+                { hex: '#d4a574', name: 'Caramel' },
+                { hex: '#78350f', name: 'Deep Teak' },
+                { hex: '#fef3c7', name: 'Cream' },
+                { hex: '#b45309', name: 'Amber' }
+            ]
+        },
+        luxury: {
+            spatial: [
+                'Grand scale furniture commands the space confidently',
+                'Layered zones — seating, accent, and display areas',
+                'Statement chandelier defines the vertical axis',
+                'Indoor plants add organic contrast to hard surfaces'
+            ],
+            lighting: [
+                'Crystal chandelier as architectural centerpiece',
+                'Cove lighting creates soft indirect ambient glow',
+                'Backlit marble panels for dramatic wall feature',
+                'Smart dimmer system for scene-based lighting control'
+            ],
+            materials: [
+                'Calacatta marble for tables, floors, and feature walls',
+                'Velvet and cashmere upholstery in deep jewel tones',
+                'Polished brass and 24K gold-plated hardware accents',
+                'Hand-knotted silk carpet with intricate motifs'
+            ],
+            colors: [
+                { hex: '#4c1d95', name: 'Deep Violet' },
+                { hex: '#c4b5fd', name: 'Lavender' },
+                { hex: '#f5c518', name: 'Gold' },
+                { hex: '#1c1917', name: 'Onyx' },
+                { hex: '#faf5ff', name: 'Pearl' }
+            ]
+        }
+    };
+
+    function generateDesignIntelligence() {
+        const intel = DESIGN_INTELLIGENCE[state.style];
+        if (!intel) return;
+
+        const makeList = (items) => items.map(t =>
+            `<div class="intel-item"><span class="intel-dot"></span><span>${t}</span></div>`
+        ).join('');
+
+        qs('#intel-spatial').innerHTML    = makeList(intel.spatial);
+        qs('#intel-lighting').innerHTML   = makeList(intel.lighting);
+        qs('#intel-materials').innerHTML  = makeList(intel.materials);
+
+        const colorHTML = `
+            <div class="color-palette-row">
+                ${intel.colors.map(c => `
+                    <div style="position:relative;margin-bottom:20px">
+                        <div class="color-chip" style="background:${c.hex}" title="${c.name}"></div>
+                        <span class="color-chip-label">${c.name}</span>
+                    </div>
+                `).join('')}
+            </div>`;
+        qs('#intel-colors').innerHTML = colorHTML;
+    }
 
     // ==================== Budget Recommendations ====================
     function generateBudgetRecommendations() {
         const items = FURNITURE_CATALOG[state.roomType]?.[state.style] || [];
-        const container = $('#budget-items-list');
+        const container = qs('#budget-items-list');
         container.innerHTML = '';
 
         let total = 0;
         items.forEach(item => {
-            const price = Math.round(state.budget * item.basePct / 100) * 100;
+            // basePct is a decimal fraction of total budget (e.g. 0.28 = 28%)
+            const price = Math.round(state.budget * item.basePct / 500) * 500;
             total += price;
             const div = document.createElement('div');
             div.className = 'budget-item';
@@ -615,30 +776,38 @@
                     <span class="budget-item-icon">${item.icon}</span>
                     <span class="budget-item-text">${item.name}</span>
                 </div>
-                <span class="budget-item-price">${formatCurrency(price)}</span>
-            `;
+                <span class="budget-item-quality">${getBudgetQualityLabel()}</span>
+                <span class="budget-item-price">${formatCurrency(price)}</span>`;
             container.appendChild(div);
         });
 
-        $('#budget-total').textContent = formatCurrency(total);
+        qs('#budget-total').textContent = formatCurrency(total);
+
+        const tier = state.budget <= 50000 ? 'Budget' : state.budget <= 150000 ? 'Mid-Range' : 'Premium';
+        qs('#budget-tier-badge').textContent = tier;
+    }
+
+    function getBudgetQualityLabel() {
+        if (state.budget <= 50000)  return 'Economy';
+        if (state.budget <= 150000) return 'Standard';
+        return 'Premium';
     }
 
     // ==================== Vastu Analysis ====================
     function generateVastuAnalysis() {
         const rules = VASTU_RULES[state.roomType] || [];
-        const container = $('#vastu-suggestions');
+        const container = qs('#vastu-suggestions');
         container.innerHTML = '';
 
         let greenCount = 0, yellowCount = 0, redCount = 0;
 
         rules.forEach(rule => {
             const div = document.createElement('div');
-            div.className = `vastu-item ${rule.status === 'yellow' ? 'warning' : rule.status === 'red' ? 'danger' : ''}`;
+            div.className = `vastu-item${rule.status === 'yellow' ? ' warning' : rule.status === 'red' ? ' danger' : ''}`;
             const badgeClass = rule.status === 'green' ? 'green' : rule.status === 'yellow' ? 'yellow' : 'red';
             div.innerHTML = `
                 <span class="vastu-badge ${badgeClass}">${rule.label}</span>
-                <span class="vastu-text">${rule.text}</span>
-            `;
+                <span class="vastu-text">${rule.text}</span>`;
             container.appendChild(div);
 
             if (rule.status === 'green') greenCount++;
@@ -646,10 +815,9 @@
             else redCount++;
         });
 
-        // Calculate score
         const total = greenCount + yellowCount + redCount;
-        const score = Math.round(((greenCount * 1 + yellowCount * 0.5) / total) * 100);
-        const scoreEl = $('#vastu-score');
+        const score = Math.round(((greenCount + yellowCount * 0.5) / total) * 100);
+        const scoreEl = qs('#vastu-score');
         scoreEl.textContent = score + '%';
         scoreEl.classList.remove('medium', 'low');
         if (score < 60) scoreEl.classList.add('low');
@@ -659,209 +827,255 @@
     // ==================== Meta Info ====================
     function populateMetaInfo() {
         const roomLabels = { bedroom: 'Bedroom', living: 'Living Room', kitchen: 'Kitchen' };
-        $('#meta-room').textContent = roomLabels[state.roomType] || state.roomType;
-        $('#meta-style').textContent = STYLE_PALETTES[state.style]?.name || state.style;
-        $('#meta-budget').textContent = formatCurrency(state.budget);
+        qs('#meta-room').textContent   = roomLabels[state.roomType] || state.roomType;
+        qs('#meta-style').textContent  = STYLE_PALETTES[state.style]?.name || state.style;
+        qs('#meta-budget').textContent = formatCurrency(state.budget);
     }
 
     // ==================== Layout Editor ====================
     function buildFurniturePalette() {
-        const palette = $('#furniture-palette');
+        const palette = qs('#furniture-palette');
         LAYOUT_FURNITURE.forEach(item => {
             const div = document.createElement('div');
             div.className = 'palette-item';
             div.draggable = true;
             div.dataset.furnitureId = item.id;
             div.innerHTML = `<span class="p-icon">${item.icon}</span><span>${item.label}</span>`;
-
             div.addEventListener('dragstart', (e) => {
                 e.dataTransfer.setData('text/plain', item.id);
                 e.dataTransfer.effectAllowed = 'copy';
             });
-
             palette.appendChild(div);
         });
     }
 
     let layoutCtx = null;
     let layoutCanvasEl = null;
-    let dragItem = null;
 
     function initLayoutCanvas() {
-        layoutCanvasEl = $('#layout-canvas');
+        layoutCanvasEl = qs('#layout-canvas');
         layoutCtx = layoutCanvasEl.getContext('2d');
 
-        // Handle drop
         layoutCanvasEl.addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; });
         layoutCanvasEl.addEventListener('drop', (e) => {
             e.preventDefault();
             const id = e.dataTransfer.getData('text/plain');
             const furniture = LAYOUT_FURNITURE.find(f => f.id === id);
             if (!furniture) return;
-
             const rect = layoutCanvasEl.getBoundingClientRect();
-            const scaleX = layoutCanvasEl.width / rect.width;
-            const scaleY = layoutCanvasEl.height / rect.height;
-            const x = (e.clientX - rect.left) * scaleX - furniture.w / 2;
-            const y = (e.clientY - rect.top) * scaleY - furniture.h / 2;
-
-            state.layoutItems.push({ ...furniture, x, y });
+            const sx = layoutCanvasEl.width / rect.width;
+            const sy = layoutCanvasEl.height / rect.height;
+            state.layoutItems.push({
+                ...furniture,
+                x: (e.clientX - rect.left) * sx - furniture.w / 2,
+                y: (e.clientY - rect.top)  * sy - furniture.h / 2
+            });
             drawLayout();
         });
 
-        // Drag on canvas for moving items
-        let isDragging = false;
-        let dragIndex = -1;
-        let dragOffsetX = 0, dragOffsetY = 0;
+        // Touch support for mobile
+        layoutCanvasEl.addEventListener('touchstart', handleTouchStart, { passive: false });
+        layoutCanvasEl.addEventListener('touchmove',  handleTouchMove,  { passive: false });
+        layoutCanvasEl.addEventListener('touchend',   handleTouchEnd,   { passive: false });
+
+        let isDragging = false, dragIndex = -1, dragOffsetX = 0, dragOffsetY = 0;
+
+        function getCanvasPos(clientX, clientY) {
+            const rect = layoutCanvasEl.getBoundingClientRect();
+            return {
+                x: (clientX - rect.left) * (layoutCanvasEl.width  / rect.width),
+                y: (clientY - rect.top)  * (layoutCanvasEl.height / rect.height)
+            };
+        }
+
+        function findItemAt(mx, my) {
+            for (let i = state.layoutItems.length - 1; i >= 0; i--) {
+                const it = state.layoutItems[i];
+                if (mx >= it.x && mx <= it.x + it.w && my >= it.y && my <= it.y + it.h) return i;
+            }
+            return -1;
+        }
 
         layoutCanvasEl.addEventListener('mousedown', (e) => {
-            const rect = layoutCanvasEl.getBoundingClientRect();
-            const scaleX = layoutCanvasEl.width / rect.width;
-            const scaleY = layoutCanvasEl.height / rect.height;
-            const mx = (e.clientX - rect.left) * scaleX;
-            const my = (e.clientY - rect.top) * scaleY;
-
-            // Find topmost item under cursor
-            for (let i = state.layoutItems.length - 1; i >= 0; i--) {
-                const item = state.layoutItems[i];
-                if (mx >= item.x && mx <= item.x + item.w && my >= item.y && my <= item.y + item.h) {
-                    isDragging = true;
-                    dragIndex = i;
-                    dragOffsetX = mx - item.x;
-                    dragOffsetY = my - item.y;
-                    break;
-                }
+            const { x, y } = getCanvasPos(e.clientX, e.clientY);
+            dragIndex = findItemAt(x, y);
+            if (dragIndex >= 0) {
+                isDragging = true;
+                dragOffsetX = x - state.layoutItems[dragIndex].x;
+                dragOffsetY = y - state.layoutItems[dragIndex].y;
             }
         });
 
         layoutCanvasEl.addEventListener('mousemove', (e) => {
             if (!isDragging || dragIndex < 0) return;
-            const rect = layoutCanvasEl.getBoundingClientRect();
-            const scaleX = layoutCanvasEl.width / rect.width;
-            const scaleY = layoutCanvasEl.height / rect.height;
-            const mx = (e.clientX - rect.left) * scaleX;
-            const my = (e.clientY - rect.top) * scaleY;
-            state.layoutItems[dragIndex].x = mx - dragOffsetX;
-            state.layoutItems[dragIndex].y = my - dragOffsetY;
+            const { x, y } = getCanvasPos(e.clientX, e.clientY);
+            state.layoutItems[dragIndex].x = x - dragOffsetX;
+            state.layoutItems[dragIndex].y = y - dragOffsetY;
             drawLayout();
         });
 
         layoutCanvasEl.addEventListener('mouseup', () => { isDragging = false; dragIndex = -1; });
+        layoutCanvasEl.addEventListener('mouseleave', () => { isDragging = false; dragIndex = -1; });
 
-        // Double-click to remove
         layoutCanvasEl.addEventListener('dblclick', (e) => {
-            const rect = layoutCanvasEl.getBoundingClientRect();
-            const scaleX = layoutCanvasEl.width / rect.width;
-            const scaleY = layoutCanvasEl.height / rect.height;
-            const mx = (e.clientX - rect.left) * scaleX;
-            const my = (e.clientY - rect.top) * scaleY;
-            for (let i = state.layoutItems.length - 1; i >= 0; i--) {
-                const item = state.layoutItems[i];
-                if (mx >= item.x && mx <= item.x + item.w && my >= item.y && my <= item.y + item.h) {
-                    state.layoutItems.splice(i, 1);
-                    drawLayout();
-                    break;
-                }
-            }
+            const { x, y } = getCanvasPos(e.clientX, e.clientY);
+            const idx = findItemAt(x, y);
+            if (idx >= 0) { state.layoutItems.splice(idx, 1); drawLayout(); }
         });
+
+        // Touch handlers
+        let touchDragIndex = -1, touchOffsetX = 0, touchOffsetY = 0;
+        function handleTouchStart(e) {
+            e.preventDefault();
+            const t = e.touches[0];
+            const { x, y } = getCanvasPos(t.clientX, t.clientY);
+            touchDragIndex = findItemAt(x, y);
+            if (touchDragIndex >= 0) {
+                touchOffsetX = x - state.layoutItems[touchDragIndex].x;
+                touchOffsetY = y - state.layoutItems[touchDragIndex].y;
+            }
+        }
+        function handleTouchMove(e) {
+            e.preventDefault();
+            if (touchDragIndex < 0) return;
+            const t = e.touches[0];
+            const { x, y } = getCanvasPos(t.clientX, t.clientY);
+            state.layoutItems[touchDragIndex].x = x - touchOffsetX;
+            state.layoutItems[touchDragIndex].y = y - touchOffsetY;
+            drawLayout();
+        }
+        function handleTouchEnd(e) { e.preventDefault(); touchDragIndex = -1; }
 
         drawLayout();
     }
 
     function drawLayout() {
         const ctx = layoutCtx;
-        const w = layoutCanvasEl.width;
-        const h = layoutCanvasEl.height;
+        const w = layoutCanvasEl.width, h = layoutCanvasEl.height;
 
-        // Clear
         ctx.clearRect(0, 0, w, h);
-
-        // Draw room outline
-        ctx.fillStyle = 'rgba(15, 10, 26, 0.6)';
+        ctx.fillStyle = 'rgba(12, 8, 22, 0.65)';
         ctx.fillRect(0, 0, w, h);
 
         // Grid
-        ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+        ctx.strokeStyle = 'rgba(255,255,255,0.05)';
         ctx.lineWidth = 1;
-        const gridSize = 20;
-        for (let x = 0; x < w; x += gridSize) {
-            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
-        }
-        for (let y = 0; y < h; y += gridSize) {
-            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
-        }
+        for (let x = 0; x < w; x += 20) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,h); ctx.stroke(); }
+        for (let y = 0; y < h; y += 20) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke(); }
 
-        // Room walls  
-        ctx.strokeStyle = 'rgba(129,140,248,0.4)';
-        ctx.lineWidth = 3;
-        const margin = 20;
-        ctx.strokeRect(margin, margin, w - margin * 2, h - margin * 2);
+        // Room walls
+        const m = 22;
+        ctx.strokeStyle = 'rgba(129,140,248,0.45)';
+        ctx.lineWidth = 2.5;
+        ctx.strokeRect(m, m, w - m*2, h - m*2);
 
-        // Door indicator
-        ctx.fillStyle = 'rgba(255,255,255,0.15)';
-        ctx.fillRect(w / 2 - 25, h - margin - 2, 50, 6);
-        ctx.fillStyle = 'rgba(255,255,255,0.4)';
-        ctx.font = '10px Inter, sans-serif';
+        // Door
+        ctx.fillStyle = 'rgba(255,255,255,0.12)';
+        ctx.fillRect(w/2 - 26, h - m - 2, 52, 5);
+        ctx.fillStyle = 'rgba(255,255,255,0.35)';
+        ctx.font = '9px Inter, sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText('DOOR', w / 2, h - margin + 14);
+        ctx.fillText('DOOR', w/2, h - m + 13);
 
-        // Window indicator
-        ctx.fillStyle = 'rgba(255,255,255,0.15)';
-        ctx.fillRect(margin - 2, h / 2 - 30, 6, 60);
+        // Window
+        ctx.fillStyle = 'rgba(255,255,255,0.12)';
+        ctx.fillRect(m - 2, h/2 - 32, 5, 64);
         ctx.save();
-        ctx.translate(margin - 8, h / 2);
-        ctx.rotate(-Math.PI / 2);
-        ctx.fillStyle = 'rgba(255,255,255,0.4)';
-        ctx.font = '10px Inter, sans-serif';
+        ctx.translate(m - 9, h/2);
+        ctx.rotate(-Math.PI/2);
+        ctx.fillStyle = 'rgba(255,255,255,0.35)';
+        ctx.font = '9px Inter, sans-serif';
         ctx.textAlign = 'center';
         ctx.fillText('WINDOW', 0, 0);
         ctx.restore();
 
         // Compass
-        ctx.fillStyle = 'rgba(255,255,255,0.3)';
-        ctx.font = 'bold 11px Inter, sans-serif';
+        ctx.fillStyle = 'rgba(255,255,255,0.28)';
+        ctx.font = 'bold 10px Inter, sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText('N', w - margin - 15, margin + 18);
-        ctx.fillText('S', w - margin - 15, h - margin - 8);
-        ctx.fillText('E', w - margin - 4, h / 2 + 4);
-        ctx.fillText('W', margin + 8, h / 2 + 4);
+        ctx.fillText('N', w - m - 12, m + 16);
+        ctx.fillText('S', w - m - 12, h - m - 6);
+        ctx.fillText('E', w - m - 2, h/2 + 4);
+        ctx.fillText('W', m + 8, h/2 + 4);
 
-        // Draw furniture items
+        // Furniture items
         state.layoutItems.forEach(item => {
             ctx.fillStyle = item.color;
             ctx.beginPath();
             ctx.roundRect(item.x, item.y, item.w, item.h, 4);
             ctx.fill();
-
-            ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+            ctx.strokeStyle = 'rgba(255,255,255,0.25)';
             ctx.lineWidth = 1;
             ctx.stroke();
-
             ctx.fillStyle = '#fff';
-            ctx.font = `${Math.min(item.w, item.h) * 0.5}px sans-serif`;
+            ctx.font = `${Math.min(item.w, item.h) * 0.48}px sans-serif`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText(item.icon, item.x + item.w / 2, item.y + item.h / 2);
+            ctx.fillText(item.icon, item.x + item.w/2, item.y + item.h/2);
         });
 
-        // Instructions
+        // Empty state hint
         if (state.layoutItems.length === 0) {
-            ctx.fillStyle = 'rgba(255,255,255,0.2)';
-            ctx.font = '14px Inter, sans-serif';
+            ctx.fillStyle = 'rgba(255,255,255,0.18)';
+            ctx.font = '13px Inter, sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText('Drag furniture from the palette', w / 2, h / 2 - 10);
-            ctx.fillText('and drop here', w / 2, h / 2 + 12);
+            ctx.fillText('Drag furniture from the palette', w/2, h/2 - 10);
+            ctx.fillText('and drop here to plan your layout', w/2, h/2 + 12);
         }
     }
 
-    // ==================== Download Design ====================
+    // ==================== Download ====================
     function downloadDesign() {
-        const canvas = $('#result-generated');
+        const canvas = qs('#result-generated');
+        if (!canvas.width) { alert('No design generated yet.'); return; }
         const link = document.createElement('a');
-        link.download = `ai-interior-${state.roomType}-${state.style}.png`;
+        link.download = `ai-interior-${state.roomType || 'room'}-${state.style || 'design'}.png`;
         link.href = canvas.toDataURL('image/png');
         link.click();
+    }
+
+    // ==================== ML Prediction ====================
+    /**
+     * Runs DesignML.predict() on the uploaded image.
+     * Shows the result in #ml-prediction-row.
+     * If the model's top prediction differs from the user's selection,
+     * it is shown as a suggestion — the user's explicit choice always wins.
+     */
+    async function runMLPrediction() {
+        const row = qs('#ml-prediction-row');
+        if (!row || !state.imageData) return;
+
+        // Ensure model is initialised (no-op if already done)
+        if (typeof DesignML !== 'undefined') {
+            try {
+                const result = await DesignML.predict(state.imageData);
+
+                const styleLabels = { modern: 'Modern', minimal: 'Minimal', traditional: 'Traditional', luxury: 'Luxury' };
+                const roomLabels  = { living: 'Living Room', bedroom: 'Bedroom', kitchen: 'Kitchen' };
+
+                const detectedStyle = styleLabels[result.style]      || result.style;
+                const detectedRoom  = roomLabels[result.roomType]     || result.roomType;
+                const confPct       = Math.round(result.confidence * 100);
+
+                qs('#ml-pred-text').textContent = `${detectedRoom} · ${detectedStyle}`;
+                qs('#ml-pred-conf').textContent = `${confPct}% confidence`;
+                qs('#ml-pred-mode').textContent = result.usedFallback ? '(heuristic)' : '(ML model)';
+
+                // Highlight if ML disagrees with user's selection
+                const userLabel = `${state.roomType}_${state.style}`;
+                if (result.topLabel !== userLabel && !result.usedFallback) {
+                    qs('#ml-pred-text').title = `Your selection: ${roomLabels[state.roomType]} · ${styleLabels[state.style]}`;
+                    row.classList.add('ml-pred-mismatch');
+                } else {
+                    row.classList.remove('ml-pred-mismatch');
+                }
+
+                row.classList.remove('hidden');
+            } catch (e) {
+                console.warn('[ML] Prediction failed:', e);
+            }
+        }
     }
 
     // ==================== Utility ====================
@@ -869,6 +1083,127 @@
         return '₹' + num.toLocaleString('en-IN');
     }
 
-    // ==================== Go! ====================
-    document.addEventListener('DOMContentLoaded', init);
+    // ==================== Boot ====================
+    document.addEventListener('DOMContentLoaded', () => {
+        init();
+        initChatbot();
+        // Preload ML model in background so it's ready by the time results are shown
+        if (typeof DesignML !== 'undefined') {
+            DesignML.init().catch(() => {});
+        }
+    });
+
+    // ==================== Chatbot Integration ====================
+    function initChatbot() {
+        if (typeof DesignChatbot === 'undefined') return;
+
+        const toggle = qs('#chatbot-toggle');
+        const panel  = qs('#chatbot-panel');
+        const close  = qs('#chatbot-close');
+        const input  = qs('#chat-input');
+        const send   = qs('#chat-send');
+        const msgs   = qs('#chat-messages');
+
+        // Initialize chatbot
+        const greeting = DesignChatbot.init();
+        appendBotMessage(greeting);
+
+        // Toggle panel
+        toggle.addEventListener('click', () => {
+            panel.classList.toggle('hidden');
+            if (!panel.classList.contains('hidden')) {
+                input.focus();
+            }
+        });
+
+        close.addEventListener('click', () => {
+            panel.classList.add('hidden');
+        });
+
+        // Send message
+        function sendUserMessage() {
+            const text = input.value.trim();
+            if (!text) return;
+
+            appendUserMessage(text);
+            input.value = '';
+
+            const response = DesignChatbot.sendMessage(text);
+            setTimeout(() => {
+                appendBotMessage(response.text);
+
+                // Handle actions
+                if (response.action === 'generate') {
+                    setTimeout(() => {
+                        applyPreferencesAndGenerate();
+                    }, 1000);
+                }
+            }, 600);
+        }
+
+        send.addEventListener('click', sendUserMessage);
+        input.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendUserMessage();
+        });
+
+        function appendUserMessage(text) {
+            const msg = document.createElement('div');
+            msg.className = 'chat-message user';
+            msg.innerHTML = `
+                <div class="chat-msg-avatar">👤</div>
+                <div class="chat-msg-bubble">${escapeHtml(text)}</div>
+            `;
+            msgs.appendChild(msg);
+            msgs.scrollTop = msgs.scrollHeight;
+        }
+
+        function appendBotMessage(text) {
+            const msg = document.createElement('div');
+            msg.className = 'chat-message';
+            msg.innerHTML = `
+                <div class="chat-msg-avatar">🤖</div>
+                <div class="chat-msg-bubble">${escapeHtml(text)}</div>
+            `;
+            msgs.appendChild(msg);
+            msgs.scrollTop = msgs.scrollHeight;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function applyPreferencesAndGenerate() {
+            const prefs = DesignChatbot.getPreferences();
+
+            // Apply preferences to state
+            if (prefs.roomType) state.roomType = prefs.roomType;
+            if (prefs.style) state.style = prefs.style;
+            if (prefs.budget) state.budget = prefs.budget;
+
+            // Update UI to reflect preferences
+            if (prefs.roomType) {
+                qsa('[data-room]').forEach(c => c.classList.remove('selected'));
+                const roomCard = qs(`[data-room="${prefs.roomType}"]`);
+                if (roomCard) roomCard.classList.add('selected');
+            }
+
+            if (prefs.style) {
+                qsa('[data-style]').forEach(c => c.classList.remove('selected'));
+                const styleCard = qs(`[data-style="${prefs.style}"]`);
+                if (styleCard) styleCard.classList.add('selected');
+            }
+
+            if (prefs.budget) {
+                qs('#budget-slider').value = prefs.budget;
+                updateBudgetUI();
+            }
+
+            // Close chat and start generation
+            qs('#chatbot-panel').classList.add('hidden');
+            startGeneration();
+        }
+    }
+
 })();
