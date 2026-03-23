@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DesignAI Studio — Professional Interior Design Platform</title>
+    <meta name="description" content="AI-powered interior design visualization platform. Upload a room, choose a style, and get photorealistic interior redesigns instantly.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="gradient-bg"></div>
+    <div id="particles"></div>
+
+    <!-- Navigation -->
+    <nav id="top-nav">
+        <div class="nav-brand">
+            <div class="nav-logo">
+                <svg width="28" height="28" viewBox="0 0 28 28" fill="none"><rect x="2" y="2" width="24" height="24" rx="6" stroke="url(#lg)" stroke-width="2"/><path d="M9 14l4 4 6-8" stroke="url(#lg)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><defs><linearGradient id="lg" x1="0" y1="0" x2="28" y2="28"><stop stop-color="#818cf8"/><stop offset="1" stop-color="#34d399"/></linearGradient></defs></svg>
+            </div>
+            <div>
+                <span class="nav-title">DesignAI Studio</span>
+                <span class="nav-badge">PRO</span>
+            </div>
+        </div>
+        <div id="step-indicators"></div>
+    </nav>
+
+    <main id="app">
+        <!-- STEP 1: Upload -->
+        <section id="step-upload" class="step active">
+            <div class="step-header">
+                <p class="step-tag">Step 1 of 4</p>
+                <h1>Upload Your Room</h1>
+                <p class="subtitle">Start with a photo of the room you want to redesign</p>
+            </div>
+            <div class="glass-card upload-card">
+                <div id="upload-zone" class="upload-zone">
+                    <div class="upload-icon-wrap">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    </div>
+                    <h3>Drop your room image here</h3>
+                    <p>Supports JPG, PNG, WEBP — Max 10MB</p>
+                    <input type="file" id="file-input" accept="image/*" hidden>
+                </div>
+                <div class="upload-divider"><span>OR</span></div>
+                <button id="camera-btn" class="btn btn-outline">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                    Capture with Camera
+                </button>
+                <div id="camera-container" class="camera-container hidden">
+                    <video id="camera-video" autoplay playsinline></video>
+                    <div class="camera-controls">
+                        <button id="capture-photo-btn" class="btn btn-primary">📸 Capture</button>
+                        <button id="cancel-camera-btn" class="btn btn-ghost">Cancel</button>
+                    </div>
+                </div>
+                <canvas id="camera-canvas" hidden></canvas>
+            </div>
+            <div id="image-preview-container" class="glass-card preview-card hidden">
+                <div class="preview-image-wrap">
+                    <img id="image-preview" alt="Room preview">
+                    <div class="preview-overlay">
+                        <span class="preview-tag">✓ Image Loaded</span>
+                    </div>
+                </div>
+                <!-- Room Analysis Preview -->
+                <div id="room-analysis-preview" class="room-analysis-preview">
+                    <div class="analysis-row"><span class="analysis-dot green"></span><span>Resolution detected</span><span id="analysis-res" class="analysis-val">—</span></div>
+                    <div class="analysis-row"><span class="analysis-dot green"></span><span>Room boundaries</span><span class="analysis-val">Identified</span></div>
+                    <div class="analysis-row"><span class="analysis-dot green"></span><span>Perspective</span><span class="analysis-val">Estimated</span></div>
+                </div>
+                <div class="preview-actions">
+                    <button id="change-image-btn" class="btn btn-ghost">Change Image</button>
+                    <button id="proceed-btn" class="btn btn-primary">Continue →</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- STEP 2: Configure -->
+        <section id="step-configure" class="step">
+            <div class="step-header">
+                <p class="step-tag">Step 2 of 4</p>
+                <h2>Design Configuration</h2>
+                <p class="subtitle">Choose your room type, design style, and budget range</p>
+            </div>
+            <div class="config-section">
+                <h3 class="section-label">Room Type</h3>
+                <div class="card-grid room-grid">
+                    <button class="option-card" data-room="bedroom">
+                        <span class="option-icon">🛏️</span>
+                        <span class="option-label">Bedroom</span>
+                    </button>
+                    <button class="option-card" data-room="living">
+                        <span class="option-icon">🛋️</span>
+                        <span class="option-label">Living Room</span>
+                    </button>
+                    <button class="option-card" data-room="kitchen">
+                        <span class="option-icon">🍳</span>
+                        <span class="option-label">Kitchen</span>
+                    </button>
+                </div>
+            </div>
+            <div class="config-section">
+                <h3 class="section-label">Design Style</h3>
+                <div class="card-grid style-grid">
+                    <button class="option-card style-card" data-style="modern">
+                        <span class="style-swatch" style="background:linear-gradient(135deg,#e2e8f0,#94a3b8)"></span>
+                        <span class="option-label">Modern</span>
+                        <span class="option-desc">Clean lines · Neutral tones · Geometric forms</span>
+                    </button>
+                    <button class="option-card style-card" data-style="minimal">
+                        <span class="style-swatch" style="background:linear-gradient(135deg,#f8fafc,#e2e8f0)"></span>
+                        <span class="option-label">Minimal</span>
+                        <span class="option-desc">Open space · Light palette · Zen simplicity</span>
+                    </button>
+                    <button class="option-card style-card" data-style="traditional">
+                        <span class="style-swatch" style="background:linear-gradient(135deg,#92400e,#d4a574)"></span>
+                        <span class="option-label">Traditional</span>
+                        <span class="option-desc">Wooden textures · Warm colors · Classic motifs</span>
+                    </button>
+                    <button class="option-card style-card" data-style="luxury">
+                        <span class="style-swatch" style="background:linear-gradient(135deg,#4c1d95,#c4b5fd)"></span>
+                        <span class="option-label">Luxury</span>
+                        <span class="option-desc">Velvet · Marble · Gold accents · Chandelier</span>
+                    </button>
+                </div>
+            </div>
+            <div class="config-section">
+                <h3 class="section-label">Budget Range</h3>
+                <div class="glass-card budget-card">
+                    <div class="budget-header">
+                        <span id="budget-tier" class="budget-tier">Mid-Range</span>
+                        <span id="budget-value" class="budget-value">₹50,000</span>
+                    </div>
+                    <input type="range" id="budget-slider" min="10000" max="500000" step="5000" value="50000" class="slider">
+                    <div class="budget-range-labels">
+                        <span>₹10,000</span>
+                        <span>₹2,50,000</span>
+                        <span>₹5,00,000</span>
+                    </div>
+                    <div class="budget-tiers">
+                        <span class="tier-tag" data-min="10000" data-max="50000">Budget</span>
+                        <span class="tier-tag active" data-min="50001" data-max="150000">Mid-Range</span>
+                        <span class="tier-tag" data-min="150001" data-max="500000">Premium</span>
+                    </div>
+                </div>
+            </div>
+            <div class="config-section">
+                <div class="glass-card vastu-toggle-card">
+                    <div class="toggle-row">
+                        <div>
+                            <h3 class="section-label" style="margin-bottom:4px">🕉️ Vastu Analysis</h3>
+                            <p class="toggle-desc">Room placement and orientation suggestions for Indian homes</p>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="vastu-toggle" checked>
+                            <span class="toggle-track"></span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div class="step-actions">
+                <button id="back-to-upload" class="btn btn-ghost">← Back</button>
+                <button id="generate-btn" class="btn btn-primary btn-large">Generate Interior Design →</button>
+            </div>
+        </section>
+
+        <!-- STEP 3: AI Processing -->
+        <section id="step-generating" class="step">
+            <div class="glass-card generating-card">
+                <div class="gen-visual">
+                    <div class="gen-orb"></div>
+                    <div class="gen-orb orb2"></div>
+                    <div class="gen-orb orb3"></div>
+                    <svg class="gen-brain" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="rgba(129,140,248,0.8)" stroke-width="1.5"><path d="M12 2a7 7 0 017 7c0 2.38-1.19 4.47-3 5.74V17a2 2 0 01-2 2h-4a2 2 0 01-2-2v-2.26C6.19 13.47 5 11.38 5 9a7 7 0 017-7z"/><path d="M10 22h4"/><path d="M9 9h6"/><path d="M12 6v6"/></svg>
+                </div>
+                <h2 id="gen-step-text" class="gen-title">Analyzing Room Structure…</h2>
+                <p id="gen-step-detail" class="gen-detail">Detecting walls, floor, ceiling, and window positions</p>
+                <div class="gen-progress-bar"><div id="gen-progress-fill" class="gen-progress-fill"></div></div>
+                <div id="gen-steps-list" class="gen-steps-list">
+                    <div class="gen-step active" data-genstep="0"><span class="gen-step-num">1</span> Analyzing Room Structure</div>
+                    <div class="gen-step" data-genstep="1"><span class="gen-step-num">2</span> Detecting Spatial Geometry</div>
+                    <div class="gen-step" data-genstep="2"><span class="gen-step-num">3</span> Generating Furniture Layout</div>
+                    <div class="gen-step" data-genstep="3"><span class="gen-step-num">4</span> Applying Interior Style</div>
+                    <div class="gen-step" data-genstep="4"><span class="gen-step-num">5</span> Rendering Photorealistic Scene</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- STEP 4: Results -->
+        <section id="step-results" class="step">
+            <div class="step-header">
+                <p class="step-tag">Design Complete</p>
+                <h2>Your AI-Designed Interior</h2>
+                <p class="subtitle">Professional interior visualization based on your preferences</p>
+            </div>
+
+            <div class="result-tabs">
+                <button class="tab-btn active" data-tab="comparison">🖼️ Before & After</button>
+                <button class="tab-btn" data-tab="intelligence">🧠 Design Analysis</button>
+                <button class="tab-btn" data-tab="budget">💰 Furniture & Budget</button>
+                <button class="tab-btn" data-tab="vastu">🕉️ Vastu</button>
+                <button class="tab-btn" data-tab="layout">🪑 Layout Editor</button>
+            </div>
+
+            <!-- Before & After Tab -->
+            <div id="tab-comparison" class="tab-panel active">
+                <div class="comparison-container glass-card">
+                    <div class="comparison-side">
+                        <span class="comp-label">Before</span>
+                        <div class="comparison-img-wrap"><img id="result-original" alt="Original room"></div>
+                    </div>
+                    <div class="comparison-divider"><div class="comp-arrow-circle">→</div></div>
+                    <div class="comparison-side">
+                        <span class="comp-label highlight">After — AI Generated</span>
+                        <div class="comparison-img-wrap"><canvas id="result-generated" width="600" height="400"></canvas></div>
+                    </div>
+                </div>
+                <div class="design-meta glass-card">
+                    <div class="meta-item"><span class="meta-icon">🏠</span><span class="meta-label">Room</span><span id="meta-room" class="meta-value">—</span></div>
+                    <div class="meta-item"><span class="meta-icon">🎨</span><span class="meta-label">Style</span><span id="meta-style" class="meta-value">—</span></div>
+                    <div class="meta-item"><span class="meta-icon">💰</span><span class="meta-label">Budget</span><span id="meta-budget" class="meta-value">—</span></div>
+                    <div class="meta-item"><span class="meta-icon">📐</span><span class="meta-label">Quality</span><span class="meta-value">Photorealistic</span></div>
+                </div>
+            </div>
+
+            <!-- Design Intelligence Tab -->
+            <div id="tab-intelligence" class="tab-panel">
+                <div class="intel-grid">
+                    <div class="glass-card intel-card">
+                        <h4>📐 Spatial Layout</h4>
+                        <div id="intel-spatial" class="intel-content"></div>
+                    </div>
+                    <div class="glass-card intel-card">
+                        <h4>💡 Lighting Design</h4>
+                        <div id="intel-lighting" class="intel-content"></div>
+                    </div>
+                    <div class="glass-card intel-card">
+                        <h4>🪵 Materials & Textures</h4>
+                        <div id="intel-materials" class="intel-content"></div>
+                    </div>
+                    <div class="glass-card intel-card">
+                        <h4>🎨 Color Palette</h4>
+                        <div id="intel-colors" class="intel-content"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Budget Tab -->
+            <div id="tab-budget" class="tab-panel">
+                <div class="glass-card budget-results-card">
+                    <div class="budget-results-header">
+                        <h3>Recommended Furniture & Decor</h3>
+                        <span id="budget-tier-badge" class="budget-tier-result">Mid-Range</span>
+                    </div>
+                    <div id="budget-items-list" class="budget-items-list"></div>
+                    <div class="budget-total-row">
+                        <span>Total Estimated Cost</span>
+                        <span id="budget-total" class="budget-total-value">₹0</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Vastu Tab -->
+            <div id="tab-vastu" class="tab-panel">
+                <div class="glass-card vastu-results-card">
+                    <div class="vastu-header">
+                        <div><h3>Vastu Compliance Report</h3><p class="vastu-subtitle">Based on traditional Vastu Shastra principles</p></div>
+                        <div id="vastu-score" class="vastu-score">—</div>
+                    </div>
+                    <div id="vastu-suggestions" class="vastu-suggestions"></div>
+                </div>
+            </div>
+
+            <!-- Layout Tab -->
+            <div id="tab-layout" class="tab-panel">
+                <div class="glass-card layout-editor-card">
+                    <h3>Interactive Layout Customization</h3>
+                    <p class="layout-hint">Drag furniture from the palette onto the canvas · Double-click to remove</p>
+                    <div class="layout-workspace">
+                        <div class="furniture-palette" id="furniture-palette"></div>
+                        <div class="layout-canvas-wrap"><canvas id="layout-canvas" width="600" height="440"></canvas></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="step-actions">
+                <button id="start-over-btn" class="btn btn-ghost">← New Design</button>
+                <button id="download-btn" class="btn btn-primary">📥 Download Design</button>
+            </div>
+        </section>
+    </main>
+
+    <script src="data.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
