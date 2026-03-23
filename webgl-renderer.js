@@ -222,30 +222,87 @@
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
+    
+    /**
+     * Blend user's image with AI-generated design on a temporary canvas
+     * @param {HTMLImageElement} userImg - User's uploaded room image
+     * @param {HTMLImageElement} aiImg - AI-generated design
+     * @param {number} W - Target width
+     * @param {number} H - Target height
+     * @returns {HTMLCanvasElement} Blended image as canvas
+     */
+    function blendImagesOnCanvas(userImg, aiImg, W, H) {
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = W;
+        tempCanvas.height = H;
+        const ctx = tempCanvas.getContext('2d');
+        
+        if (!ctx) {
+            console.warn('[WebGLRenderer] Cannot create blend canvas, using user image only');
+            return userImg;
+        }
+
+        // Draw AI design as base (60% opacity)
+        ctx.globalAlpha = 0.60;
+        ctx.drawImage(aiImg, 0, 0, W, H);
+        
+        // Blend user's structural elements (35% opacity with multiply)
+        ctx.globalCompositeOperation = 'multiply';
+        ctx.globalAlpha = 0.35;
+        ctx.drawImage(userImg, 0, 0, W, H);
+        
+        // Blend user's lighting (25% opacity with overlay)
+        ctx.globalCompositeOperation = 'overlay';
+        ctx.globalAlpha = 0.25;
+        ctx.drawImage(userImg, 0, 0, W, H);
+        
+        return tempCanvas;
+    }
+
     /**
      * Render the styled image using GPU shaders.
      * @param {HTMLCanvasElement} canvas - Output canvas
-     * @param {HTMLImageElement} image - Source room image
+     * @param {HTMLImageElement} userImage - Source room image from user
      * @param {string} style - 'modern' | 'minimal' | 'traditional' | 'luxury'
      * @param {object} palette - STYLE_PALETTES[style]
+     * @param {HTMLImageElement} aiImage - Optional AI-generated design to blend
      */
-    function render(canvas, image, style, palette) {
-        const W = image.naturalWidth  || image.width;
-        const H = image.naturalHeight || image.height;
-        canvas.width  = W;
-        canvas.height = H;
+    function render(canvas, userImage, style, palette, aiImage) {
+        try {
+            console.log('[WebGLRenderer] Starting render...', { style, width: userImage.width, height: userImage.height, hasAI: !!aiImage });
+            
+            const W = userImage.naturalWidth  || userImage.width;
+            const H = userImage.naturalHeight || userImage.height;
+            
+            if (!W || !H) {
+                console.error('[WebGLRenderer] Invalid image dimensions:', W, H);
+                return false;
+            }
+            
+            canvas.width  = W;
+            canvas.height = H;
 
-        if (!gl && !initWebGL(canvas)) {
-            // Fallback to Canvas 2D if WebGL unavailable
-            return false;
-        }
+            if (!gl && !initWebGL(canvas)) {
+                // Fallback to Canvas 2D if WebGL unavailable
+                console.warn('[WebGLRenderer] WebGL init failed, returning false for fallback');
+                return false;
+            }
 
-        gl.viewport(0, 0, W, H);
-        gl.useProgram(program);
+            // If AI image is provided, blend it with user image first
+            let sourceImage = userImage;
+            if (aiImage) {
+                console.log('[WebGLRenderer] Blending AI design with user image...');
+                sourceImage = blendImagesOnCanvas(userImage, aiImage, W, H);
+            }
+
+            gl.viewport(0, 0, W, H);
+            gl.useProgram(program);
+            
+            console.log('[WebGLRenderer] WebGL context ready, uploading texture...');
 
         // Upload texture
         gl.bindTexture(gl.TEXTURE_2D, texture);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, sourceImage);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
@@ -290,8 +347,21 @@
 
         // Draw
         gl.drawArrays(gl.TRIANGLES, 0, 6);
+        
+        // Check for GL errors
+        const err = gl.getError();
+        if (err !== gl.NO_ERROR) {
+            console.error('[WebGLRenderer] GL error after draw:', err);
+            return false;
+        }
 
+        console.log('[WebGLRenderer] ✓ Render complete');
         return true;
+        
+        } catch (error) {
+            console.error('[WebGLRenderer] Exception during render:', error);
+            return false;
+        }
     }
 
     // Expose API
